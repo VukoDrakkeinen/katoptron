@@ -1,0 +1,50 @@
+[package]
+name = "katoptron"
+version = "0.1.0"
+license = "MIT"
+authors = ["VukoDrakkeinen <sneyk8+git@gmail.com>"]
+publish = false
+
+[workspace]
+members = ["wstr_macro"]
+
+[dependencies]
+clap = "^2.31"
+#net2 = "^0.2"
+serde = "^1.0.45"
+bincode = "^1.0"
+failure = "^1.0"
+byteorder = "^1.2.2"
+crossbeam = "^0.3.2"
+serde_derive = "^1.0.45"
+failure_derive = "^1.0"
+display_derive = "^1.0"
+crossbeam-channel = "^0.1"
+wstr_macro = { path = "wstr_macro" }
+
+[target."cfg(unix)".dependencies]
+lazy_static = { version = "^1.0", features = ["nightly"] }
+dbus = "^0.6.1"
+notify-rust = "^3.4"
+
+[target."cfg(windows)".dependencies]
+lazy_static = "^1.0"
+winapi = { version = "^0.3.4", features = ["winuser"] }
+
+[lib]
+name = "katoptron"
+path = "src/lib.rs"
+
+[[bin]]
+name = "katoptron-send"
+path = "src/send/main.rs"
+
+[[bin]]
+name = "katoptron-recv"
+path = "src/recv/main.rs"
+
+[patch.crates-io]
+lazy_static = { git = "https://github.com/superp00t/lazy-static.rs" }
+failure = { git = "https://github.com/rust-lang-nursery/failure/" }
+failure_derive = { git = "https://github.com/rust-lang-nursery/failure/" }
+display_derive = { git = "https://github.com/withoutboats/display_derive" }
