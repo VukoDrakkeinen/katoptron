@@ -42,6 +42,9 @@ pub enum TxErrorKind {
 
 #[derive(Fail, Debug, Display)]
 pub enum RecvError {
+	#[display(fmt = "Garbage data received")]
+	GarbageData,
+
 	#[display(fmt = "Payload too large")]
 	PayloadTooLarge,
 
@@ -55,6 +58,7 @@ pub enum RecvError {
 impl RecvError {
 	pub fn kind(&self) -> RecvErrorKind {
 		match self {
+			&RecvError::GarbageData                      => return RecvErrorKind::GarbageData,
 			&RecvError::PayloadTooLarge                  => return RecvErrorKind::PayloadTooLarge,
 			&RecvError::PayloadDeserializationFailure(_) => return RecvErrorKind::PayloadDeserializationFailure,
 			&RecvError::Generic(_, kind)                 => return kind,
@@ -64,6 +68,7 @@ impl RecvError {
 
 #[derive(Debug, Display, Clone, Copy)]
 pub enum RecvErrorKind {
+	GarbageData,
 	PayloadTooLarge,
 	PayloadDeserializationFailure,
 	Io,
