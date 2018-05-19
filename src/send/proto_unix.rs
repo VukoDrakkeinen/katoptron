@@ -52,6 +52,8 @@ fn main() {
 		let window_class = "Window Class";
 		notifications.send(Photon::Notification{ msg: format!("[created] {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
 		notifications.send(Photon::Flash{ msg: format!("[flashed] {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
+		notifications.send(Photon::Flash{ msg: String::from("another flash") }).unwrap();
+		notifications.send(Photon::Flash{ msg: format!("[flashed] {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
 		notifications.send(Photon::Heartbeat).unwrap();
 	});
 }

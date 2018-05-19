@@ -5,6 +5,12 @@ extern crate katoptron;
 use self::katoptron::{Lightray, TxError, FailExt};
 
 use std::net::SocketAddr;
+use std::time::{Duration, Instant};
+use std::collections::HashMap;
+use std::mem;
+
+const FLASH_CUTOFF_INTERVAL: Duration = Duration::from_secs(30);
+const FLASH_EXPIRATION_INTERVAL: Duration = Duration::from_secs(600);
 
 pub fn listen() {
 	if let Err(e) = run_server() {
@@ -19,6 +25,8 @@ fn run_server() -> Result<(), TxError> {
 	println!("Client connection {} ({})", recv_addr, lightray.peer_name());
 
 	let mut notification_count = 0;
+	let mut last_flash_times = HashMap::new();
+	let past = Instant::now() - FLASH_CUTOFF_INTERVAL * 2;
 
 	loop {
 		use self::katoptron::Photon;
@@ -32,6 +40,14 @@ fn run_server() -> Result<(), TxError> {
 					notification_count += 1;
 				},
 				Photon::Flash{ msg } => {
+					let now = Instant::now();
+					let last_flash_time = last_flash_times.entry(msg.clone()).or_insert(past);
+
+					//todo: [someday] anti-spam, n offences allowed, decays over time
+					if now - mem::replace(last_flash_time, now) <= FLASH_CUTOFF_INTERVAL {
+						continue;
+					}
+
 					println!("Flash: {}", msg);
 					Notification::new()
 						.summary("VM Notification")
@@ -42,6 +58,8 @@ fn run_server() -> Result<(), TxError> {
 						.hint(NotificationHint::Resident(true)) // this is not supported by all implementations
 						.timeout(Timeout::Never) // this however is
 						.show().unwrap();
+
+					expired_times_cleanup(&mut last_flash_times);
 				},
 				Photon::Handshake{..} => unreachable!()
 			},
@@ -57,4 +75,9 @@ fn run_server() -> Result<(), TxError> {
 
 	println!("notifs recv'd: {}", notification_count);
 	Ok(())
+}
+
+fn expired_times_cleanup(times: &mut HashMap<String, Instant>) {
+	let now = Instant::now();
+	times.retain(move |_, &mut time| now - time <= FLASH_EXPIRATION_INTERVAL);
 }
