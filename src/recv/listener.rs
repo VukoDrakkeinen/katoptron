@@ -1,43 +1,29 @@
 extern crate notify_rust;
-extern crate katoptron;
-extern crate failure;
-
-use std::net::{SocketAddr, TcpListener};
 use self::notify_rust::{Notification, NotificationHint, Timeout};
-use self::katoptron::{Lightray, TxError};
+
+extern crate katoptron;
+use self::katoptron::{Lightray, TxError, FailExt};
+
+use std::net::SocketAddr;
 
 pub fn listen() {
-	use self::failure::Fail;
 	if let Err(e) = run_server() {
-		if let Some(backtrace) = e.backtrace() {
-			println!("{}", backtrace);
-		} else {
-			println!("{}", e);
-		}
+		eprintln!("{}", e.cause_trace());
 		//todo: exit with an error code
 	}
 }
 
 fn run_server() -> Result<(), TxError> {
 	let recv_addr = SocketAddr::from(([127, 0, 0, 1], 8888));
-	let listener = TcpListener::bind(recv_addr)?;
-
-	println!("listening...");
+	let mut lightray = Lightray::listen_on(recv_addr, String::from("ALA MA KOTA"))?;
+	println!("Client connection {} ({})", recv_addr, lightray.peer_name());
 
 	let mut notification_count = 0;
 
-	let (stream, send_addr) = listener.accept()?; //todo(vuko): handle multiple clients
-	println!("connection from {}", send_addr);
-
-	let mut lightray = Lightray::new(stream);
 	loop {
 		use self::katoptron::Photon;
 		match lightray.recv_message() {
 			Ok(photon) => match photon {
-				Photon::Handshake{ machine_name: client_name } => {
-					println!("Handshake from: {}", client_name);
-					lightray.send_eavesdroppable_message(Photon::Handshake{ machine_name: String::from("ALA MA KOTA — serwer") })?;
-				},
 				Photon::Heartbeat => {
 					println!("Heartbeat");
 				},
@@ -57,10 +43,11 @@ fn run_server() -> Result<(), TxError> {
 						.timeout(Timeout::Never) // this however is
 						.show().unwrap();
 				},
+				Photon::Handshake{..} => unreachable!()
 			},
 			Err(e) => match e {
 				_ => {
-					println!("here: {}", e);
+					eprintln!("here: {}", e.cause_trace());
 					break;
 //					return Err(e.into());
 				}
@@ -68,6 +55,6 @@ fn run_server() -> Result<(), TxError> {
 		}
 	}
 
-	println!("{}", notification_count);
+	println!("notifs recv'd: {}", notification_count);
 	Ok(())
 }
