@@ -1,10 +1,22 @@
 extern crate dbus;
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::cell::Cell;
+
+#[derive(Copy, Clone, Default, Debug)]
+struct Data;
+impl dbus::tree::DataType for Data {
+	type Tree       = ();
+	type ObjectPath = Cell<bool>;
+	type Property   = ();
+	type Interface  = ();
+	type Method     = ();
+	type Signal     = ();
+}
 
 pub fn show(stop: Arc<AtomicBool>) {
-	let factory = dbus::tree::Factory::new_fn::<()>();
+	let factory = dbus::tree::Factory::new_fnmut::<Data>();
 
 	let new_title_signal = Arc::new(factory.signal("NewTitle", ()));
 	let new_icon_signal = Arc::new(factory.signal("NewIcon", ()));
@@ -13,37 +25,48 @@ pub fn show(stop: Arc<AtomicBool>) {
 	let new_tooltip_signal = Arc::new(factory.signal("NewTooltip", ()));
 	let new_status_signal = Arc::new(factory.signal("NewStatus", ()).sarg::<&str, _>("status"));
 
+	let unread_notifications = Cell::new(true);
 	//IconPixmap(x: i32, y: i32, data: &[u8]), OverlayIconPixmap, AttentionIconPixmap, AttentionMovieName(name: &str), ToolTip(icon_name: &str, icon_data: (i32, i32, &[u8]), title: &str, description: &str)
 
 	let tree = factory.tree(())
-		.add(factory.object_path("/StatusNotifierItem", ()).introspectable()
+		.add(factory.object_path("/StatusNotifierItem", unread_notifications).introspectable()
 			.add(factory.interface("org.kde.StatusNotifierItem", ())
 				.add_p(factory.property::<&str, _>("Category", ()).emits_changed(dbus::tree::EmitsChangedSignal::Const).on_get(|response, _| {
 					response.append("Communications");
 					Ok(())
 				}))
-				.add_p(factory.property::<&str, _>("AttentionIconName", ()).emits_changed(dbus::tree::EmitsChangedSignal::Const).on_get(|response, _| {
+				.add_p(factory.property::<&str, _>("AttentionIconName", ()).emits_changed(dbus::tree::EmitsChangedSignal::Invalidates).access(dbus::tree::Access::Read).on_get(|response, _| {
 					response.append("dialog-error");
 					Ok(())
 				}))
-				.add_p(factory.property::<&str, _>("IconName", ()).emits_changed(dbus::tree::EmitsChangedSignal::Const).on_get(|response, _| {
-					response.append("dialog-information");
+				.add_p(factory.property::<&str, _>("IconName", ()).emits_changed(dbus::tree::EmitsChangedSignal::Invalidates).access(dbus::tree::Access::Read).on_get(|response, prop_info| {
+					let unread_notifications = prop_info.path.get_data().get();
+					if unread_notifications {
+						response.append("dialog-error");
+					} else {
+						response.append("dialog-information");
+					}
 					Ok(())
 				}))
-				.add_p(factory.property::<&str, _>("OverlayIconName", ()).emits_changed(dbus::tree::EmitsChangedSignal::Const).on_get(|response, _| {
+				.add_p(factory.property::<&str, _>("OverlayIconName", ()).emits_changed(dbus::tree::EmitsChangedSignal::Invalidates).access(dbus::tree::Access::Read).on_get(|response, _| {
 					response.append("dialog-error");
 					Ok(())
 				}))
 				.add_p(factory.property::<&str, _>("Id", ()).emits_changed(dbus::tree::EmitsChangedSignal::Const).on_get(|response, _| {
-					response.append("notifs_recv");
+					response.append("katoptron"); //todo: name of binary
 					Ok(())
 				}))
-				.add_p(factory.property::<&str, _>("Title", ()).emits_changed(dbus::tree::EmitsChangedSignal::Const).on_get(|response, _| {
+				.add_p(factory.property::<&str, _>("Title", ()).emits_changed(dbus::tree::EmitsChangedSignal::Invalidates).access(dbus::tree::Access::Read).on_get(|response, _| {
 					response.append("VM Notifications");
 					Ok(())
 				}))
-				.add_p(factory.property::<&str, _>("Status", ()).emits_changed(dbus::tree::EmitsChangedSignal::Invalidates).access(dbus::tree::Access::Read).on_get(|response, _| {
-					response.append("Active"); //NeedsAttention
+				.add_p(factory.property::<&str, _>("Status", ()).emits_changed(dbus::tree::EmitsChangedSignal::True).access(dbus::tree::Access::Read).on_get(|response, prop_info| {
+					let unread_notifications = prop_info.path.get_data().get();
+					if unread_notifications {
+						response.append("NeedsAttention");
+					} else {
+						response.append("Active");
+					}
 					Ok(())
 				}))
 				.add_p(factory.property::<u32, _>("WindowId", ()).emits_changed(dbus::tree::EmitsChangedSignal::Const).on_get(|response, _| {
@@ -58,17 +81,37 @@ pub fn show(stop: Arc<AtomicBool>) {
 					response.append("");
 					Ok(())
 				}))
-				.add_m(factory.method("Activate", (), |call| {
-					if let (Some(x), Some(y)) = call.msg.get2::<i32, i32>() {
-						println!("Left-clicked at ({x}, {y})", x=x, y=y);
-					};
-					Ok(vec![call.msg.method_return()])
+				.add_m(factory.method("Activate", (), {
+					let new_status_signal = new_status_signal.clone();
+					let new_icon_signal = new_icon_signal.clone();
+
+					move |call| {
+						let _= call.msg.read2::<i32, i32>()?;
+
+						let unread_notifications = call.path.get_data();
+						unread_notifications.set(false);
+
+						let ret = call.msg.method_return();
+						let sig0 = new_status_signal.msg(call.path.get_name(), call.iface.get_name()).append1("Active");
+						let sig1 = new_icon_signal.msg(call.path.get_name(), call.iface.get_name());
+						Ok(vec![ret, sig0, sig1])
+					}
 				}).inarg::<i32, _>("x").inarg::<i32, _>("y"))
-				.add_m(factory.method("ContextMenu", (), |call| {
-					if let (Some(x), Some(y)) = call.msg.get2::<i32, i32>() {
-						println!("Right-clicked at ({x}, {y})", x=x, y=y);
-					};
-					Ok(vec![call.msg.method_return()])
+				.add_m(factory.method("ContextMenu", (), {
+					let new_status_signal = new_status_signal.clone();
+					let new_icon_signal = new_icon_signal.clone();
+
+					move |call| {
+						let _ = call.msg.read2::<i32, i32>()?;
+
+						let unread_notifications = call.path.get_data();
+						unread_notifications.set(true);
+
+						let ret = call.msg.method_return();
+						let sig0 = new_status_signal.msg(call.path.get_name(), call.iface.get_name()).append1("NeedsAttention");
+						let sig1 = new_icon_signal.msg(call.path.get_name(), call.iface.get_name());
+						Ok(vec![ret, sig0, sig1])
+					}
 				}).inarg::<i32, _>("x").inarg::<i32, _>("y"))
 				.add_m(factory.method("SecondaryActivate", (), |call| {
 					if let (Some(x), Some(y)) = call.msg.get2::<i32, i32>() {
@@ -92,20 +135,14 @@ pub fn show(stop: Arc<AtomicBool>) {
 		);
 
 	let dbus_conn = dbus::Connection::get_private(dbus::BusType::Session).expect("couldn't connect to D-Bus");
-	println!("{}", dbus_conn.unique_name());
 
 	tree.set_registered(&dbus_conn, true).expect("couldn't register D-Bus paths");
 	dbus_conn.add_handler(tree);
 
 	let register = dbus::Message::new_method_call("org.kde.StatusNotifierWatcher", "/StatusNotifierWatcher", "org.kde.StatusNotifierWatcher", "RegisterStatusNotifierItem").expect("couldn't create message");
 	let register = register.append(dbus_conn.unique_name());
-	match dbus_conn.send_with_reply_and_block(register, 250) {
-		Ok(_) => {
-			println!("Registered!");
-		},
-		Err(err) => {
-			println!("fuck: {}: {}", err.name().expect("b"), err.message().expect("c"));
-		},
+	if let Err(e) = dbus_conn.send_with_reply_and_block(register, 250) {
+		println!("fuck: {}: {}", e.name().expect("b"), e.message().expect("c"));
 	}
 
 

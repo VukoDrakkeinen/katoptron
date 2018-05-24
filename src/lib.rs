@@ -32,7 +32,9 @@ const EAVESDROP_MAGIC: &[u8] = b"FACEBOOK_CAT";
 const PROTOCOL_VERSION: u8 = 0;
 
 
-//todo: better names
+
+//todo: leaky abstraction: ideally - client/server send/respond to heartbeats ON ITS OWN + handle mutliple clients (async I/O?)
+//todo: better names: Photon -> Payload; new enum Message{ Notification, Flash, ?Heartbeat? }; Lightray -> NotificationStream
 #[derive(Serialize, Deserialize)]
 pub enum Photon {
 	Handshake    { protocol_version: u8, peer_name: String },
