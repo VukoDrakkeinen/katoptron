@@ -1,29 +1,25 @@
 extern crate crossbeam;
 
+extern crate katoptron;
+use self::katoptron::FailExt;
+
+extern crate crossbeam_channel;
+
 use status_notifier;
-use listener;
+use server;
 
 #[main]
 fn main() {
-	use std::sync::Arc;
-	use std::sync::atomic::{AtomicBool, Ordering};
-
-	let stop = Arc::new(AtomicBool::new(false));
-
 	crossbeam::scope(|scope| {
-		scope.builder().name(String::from("status_notifier")).spawn({
-			let stop = stop.clone();
-			move || status_notifier::show(stop)
-		}).unwrap();
-		scope.defer({
-			//todo
-//			let stop = stop.clone();
-			move || stop.store(true, Ordering::SeqCst)
-		});
+		let (flashes_sender, flasher_receiver) = crossbeam_channel::bounded(8);
 
-		listener::listen();
+		scope.builder().name(String::from("status_notifier")).spawn(
+			move || status_notifier::show(flasher_receiver)
+		).unwrap();
 
-//		//todo
-//		stop.store(true, Ordering::SeqCst);
+		if let Err(e) = server::listen(flashes_sender) {
+			eprintln!("{}", e.cause_trace());
+			//todo: exit with an error code
+		}
 	});
 }

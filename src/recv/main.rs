@@ -1,7 +1,10 @@
 #![feature(nll)]
 #![feature(main)]
 
-mod listener;
+#[macro_use]
+extern crate crossbeam_channel;
+
+mod server;
 
 #[cfg(unix)]
 mod main_unix;

@@ -1,23 +1,36 @@
 extern crate dbus;
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+extern crate notify_rust;
+use self::notify_rust::{Notification, NotificationHint, Timeout};
+
+extern crate crossbeam_channel;
+use self::crossbeam_channel::Receiver;
+
+use std::time::{Duration, Instant};
+use std::collections::HashMap;
 use std::cell::Cell;
+use std::sync::Arc;
+use std::rc::Rc;
+use std::mem;
+
+const FLASH_CUTOFF_INTERVAL:     Duration = Duration::from_secs(30);
+const FLASH_EXPIRATION_INTERVAL: Duration = Duration::from_secs(600);
 
 #[derive(Copy, Clone, Default, Debug)]
 struct Data;
 impl dbus::tree::DataType for Data {
 	type Tree       = ();
-	type ObjectPath = Cell<bool>;
+	type ObjectPath = Rc<Cell<u16>>;
 	type Property   = ();
 	type Interface  = ();
 	type Method     = ();
 	type Signal     = ();
 }
 
-pub fn show(stop: Arc<AtomicBool>) {
+pub fn show(flashes: Receiver<String>) {
 	let factory = dbus::tree::Factory::new_fnmut::<Data>();
 
+	//todo: why are Arcs necessary here?
 	let new_title_signal = Arc::new(factory.signal("NewTitle", ()));
 	let new_icon_signal = Arc::new(factory.signal("NewIcon", ()));
 	let new_attention_icon_signal = Arc::new(factory.signal("NewAttentionIcon", ()));
@@ -25,11 +38,13 @@ pub fn show(stop: Arc<AtomicBool>) {
 	let new_tooltip_signal = Arc::new(factory.signal("NewTooltip", ()));
 	let new_status_signal = Arc::new(factory.signal("NewStatus", ()).sarg::<&str, _>("status"));
 
-	let unread_notifications = Cell::new(true);
+	//todo: can I get rid of Rc here somehow?
+	let unread_notification_count = Rc::new(Cell::new(0));
+
 	//IconPixmap(x: i32, y: i32, data: &[u8]), OverlayIconPixmap, AttentionIconPixmap, AttentionMovieName(name: &str), ToolTip(icon_name: &str, icon_data: (i32, i32, &[u8]), title: &str, description: &str)
 
 	let tree = factory.tree(())
-		.add(factory.object_path("/StatusNotifierItem", unread_notifications).introspectable()
+		.add(factory.object_path("/StatusNotifierItem", unread_notification_count.clone()).introspectable()
 			.add(factory.interface("org.kde.StatusNotifierItem", ())
 				.add_p(factory.property::<&str, _>("Category", ()).emits_changed(dbus::tree::EmitsChangedSignal::Const).on_get(|response, _| {
 					response.append("Communications");
@@ -40,8 +55,9 @@ pub fn show(stop: Arc<AtomicBool>) {
 					Ok(())
 				}))
 				.add_p(factory.property::<&str, _>("IconName", ()).emits_changed(dbus::tree::EmitsChangedSignal::Invalidates).access(dbus::tree::Access::Read).on_get(|response, prop_info| {
-					let unread_notifications = prop_info.path.get_data().get();
-					if unread_notifications {
+					let unread_notifications_count = prop_info.path.get_data().get();
+					println!("@icon c: {}", unread_notifications_count);
+					if unread_notifications_count > 0 {
 						response.append("dialog-error");
 					} else {
 						response.append("dialog-information");
@@ -61,8 +77,9 @@ pub fn show(stop: Arc<AtomicBool>) {
 					Ok(())
 				}))
 				.add_p(factory.property::<&str, _>("Status", ()).emits_changed(dbus::tree::EmitsChangedSignal::True).access(dbus::tree::Access::Read).on_get(|response, prop_info| {
-					let unread_notifications = prop_info.path.get_data().get();
-					if unread_notifications {
+					let unread_notification_count = prop_info.path.get_data().get();
+					println!("@status c: {}", unread_notification_count);
+					if unread_notification_count > 0 {
 						response.append("NeedsAttention");
 					} else {
 						response.append("Active");
@@ -88,8 +105,8 @@ pub fn show(stop: Arc<AtomicBool>) {
 					move |call| {
 						let _= call.msg.read2::<i32, i32>()?;
 
-						let unread_notifications = call.path.get_data();
-						unread_notifications.set(false);
+						let unread_notification_count = call.path.get_data();
+						unread_notification_count.set(0);
 
 						let ret = call.msg.method_return();
 						let sig0 = new_status_signal.msg(call.path.get_name(), call.iface.get_name()).append1("Active");
@@ -104,8 +121,8 @@ pub fn show(stop: Arc<AtomicBool>) {
 					move |call| {
 						let _ = call.msg.read2::<i32, i32>()?;
 
-						let unread_notifications = call.path.get_data();
-						unread_notifications.set(true);
+						let unread_notification_count = call.path.get_data();
+						unread_notification_count.set(1);
 
 						let ret = call.msg.method_return();
 						let sig0 = new_status_signal.msg(call.path.get_name(), call.iface.get_name()).append1("NeedsAttention");
@@ -126,11 +143,11 @@ pub fn show(stop: Arc<AtomicBool>) {
 					Ok(vec![call.msg.method_return()])
 				}).inarg::<i32, _>("delta").inarg::<&str, _>("orientation"))
 				.add_s(new_title_signal)
-				.add_s(new_icon_signal)
+				.add_s(new_icon_signal.clone())
 				.add_s(new_attention_icon_signal)
 				.add_s(new_overlay_icon_signal)
 				.add_s(new_tooltip_signal)
-				.add_s(new_status_signal)
+				.add_s(new_status_signal.clone())
 			)
 		);
 
@@ -145,8 +162,45 @@ pub fn show(stop: Arc<AtomicBool>) {
 		println!("fuck: {}: {}", e.name().expect("b"), e.message().expect("c"));
 	}
 
+	let mut last_flash_times = HashMap::new();
+	let past = Instant::now() - FLASH_CUTOFF_INTERVAL * 2; //I'd prefer unix epoch, but it's virtually impossible to get such Instant
 
-	while !stop.load(Ordering::SeqCst) {
-		for _ in dbus_conn.incoming(50) {}
+	let path  = dbus::Path::new("/StatusNotifierItem").unwrap();
+	let iface = dbus::Interface::new("org.kde.StatusNotifierItem").unwrap();
+
+	let timeout = Duration::from_millis(50);
+	'processing: loop {
+		//only internally a loop
+		select_loop! {
+			recv(flashes, flash) => {
+				let last_flash_time = last_flash_times.entry(flash).or_insert(past);
+
+				//todo: [someday] anti-spam, n offences allowed, decays over time
+				let now = Instant::now();
+				if now - mem::replace(last_flash_time, now) <= FLASH_CUTOFF_INTERVAL {
+					continue 'processing;
+				}
+
+				unread_notification_count.set(unread_notification_count.get() + 1);
+
+				dbus_conn.send(new_status_signal.msg(&path, &iface).append1("NeedsAttention")).unwrap();
+				dbus_conn.send(new_icon_signal.msg(&path, &iface)).unwrap();
+
+				Notification::new()
+					.summary("VM Notification")
+					.body("ala ma kota")
+					.icon("emblem-shared")
+					.appname("katoptron")
+					.hint(NotificationHint::Category(String::from("message")))
+					.hint(NotificationHint::Resident(true)) // this is not supported by all implementations
+					.timeout(Timeout::Never) // this however is
+					.show().unwrap();
+
+				last_flash_times.retain(|_, &mut time| Instant::now() - time <= FLASH_EXPIRATION_INTERVAL);
+			},
+			//unfortunately there seems no easy way of selecting on both channel and dbus
+			timed_out(timeout) => for _ in dbus_conn.incoming(50) {} //todo: why is the timeout here necessary?
+			disconnected() => break 'processing,
+		}
 	}
 }
