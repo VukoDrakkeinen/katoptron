@@ -2,30 +2,42 @@
 #![feature(proc_macro_non_items)]
 
 extern crate winapi;
+use winapi::shared::minwindef::{UINT, WPARAM, LPARAM, LRESULT};
+use winapi::shared::windef::{HWND};
+use winapi::um::winnt::{LPCWSTR, LPWSTR};
+
 extern crate wstr_macro;
+use wstr_macro::wstr;
+
+extern crate crossbeam;
 extern crate crossbeam_channel;
+use crossbeam_channel::{Sender, Receiver};
+
 extern crate katoptron;
+use katoptron::Photon;
 
 #[macro_use]
 extern crate lazy_static;
 
-
-use winapi::shared::minwindef::{UINT, WPARAM, LPARAM, LRESULT};
-use winapi::shared::windef::{HWND};
-use winapi::um::winnt::{LPCWSTR, LPWSTR};
-use wstr_macro::wstr;
-use crossbeam_channel;
-use crossbeam_channel::{Sender, Receiver};
-use stream;
-use katoptron::Photon;
+use std::hint;
+use mirror;
 
 
 const SHELLHOOK_REG: LPCWSTR = wstr!["SHELLHOOK"];
 
-lazy_static! {
-	static (ref NOTIFICATIONS_TX, ref NOTIFICATIONS_RX): (Sender<_>, Receiver<_>) = crossbeam_channel::bounded::<Photon>(8);
+
+static mut SENDER: Option<Sender<Photon>> = None;
+
+unsafe fn init_sender(tx: Sender<Photon>) {
+	SENDER = Some(tx);
 }
 
+unsafe fn message_sender() -> &'static Sender<Photon> {
+	match SENDER {
+		Some(ref tx) => tx,
+		_ => hint::unreachable_unchecked(),
+	}
+}
 
 
 unsafe extern "system"
@@ -58,7 +70,7 @@ fn wnd_proc(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 					let window_title = String::from_utf16_lossy(&window_title);
 					let window_class = String::from_utf16_lossy(&window_class);
 					println!("[created] {title} {{{class}}}", title=window_title, class=window_class);
-					NOTIFICATIONS_TX.send(Photon::Notification{ msg: format!("[created] {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
+					message_sender().send(Photon::Notification{ msg: format!("[created] {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
 				},
 
 				HSHELL_FLASH => {
@@ -67,7 +79,7 @@ fn wnd_proc(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 					let window_title = String::from_utf16_lossy(&window_title);
 					let window_class = String::from_utf16_lossy(&window_class);
 					println!("[flashed] {title} {{{class}}}", title=window_title, class=window_class);
-					NOTIFICATIONS_TX.send(Photon::Flash{ msg: format!("[flashed] {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
+					message_sender().send(Photon::Flash{ msg: format!("[flashed] {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
 				},
 				_ => {}
 			}
@@ -75,7 +87,7 @@ fn wnd_proc(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 			0
 		},
 		WM_DESTROY => {
-			NOTIFICATIONS_TX.close();
+//			message_sender().disconnect();
 			PostQuitMessage(0);
 			0
 		},
@@ -84,7 +96,6 @@ fn wnd_proc(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 		}
 	}
 }
-
 
 #[main]
 fn main() {
@@ -96,12 +107,7 @@ fn main() {
 	use winapi::ctypes::{c_void};
 	use std::thread;
 
-	NOTIFICATIONS_TX.send(Photon::Handshake{ machine_name: "ala ma kota" }).unwrap();
-
-	let comms = thread::spawn(move || {
-		stream::send_notifications(NOTIFICATIONS_RX);
-	});
-
+//	let mut window_handle;
 	unsafe {
 		let window_handle = CreateWindowExW(
 			/*style:*/ 0,
@@ -117,15 +123,25 @@ fn main() {
 		);
 		RegisterShellHookWindow(window_handle);
 		SetWindowLongPtrW(window_handle, GWLP_WNDPROC, wnd_proc as LONG_PTR);
-	}
+	};
+//	let window_handle = window_handle;
 
-	unsafe {
-		let mut msg = mem::zeroed();
-		while GetMessageW(&mut msg, 0 as HWND, 0, 0) != 0 {
-			TranslateMessage(&msg);
-			DispatchMessageW(&msg);
+	let (sender, receiver) = crossbeam_channel::bounded(8);
+	unsafe { init_sender(sender); }
+
+	crossbeam::scope(|scope| {
+		scope.builder().name(String::from("sender")).spawn(
+			move || mirror::notifications(receiver)
+		).unwrap();
+		scope.defer(move || unsafe{ message_sender().disconnect(); });
+//		scope.defer(move || unsafe{ PostMessage(window_handle, WM_CLOSE, 0, 0) });
+
+		unsafe {
+			let mut msg = mem::zeroed();
+			while GetMessageW(&mut msg, 0 as HWND, 0, 0) != 0 {
+				TranslateMessage(&msg);
+				DispatchMessageW(&msg);
+			}
 		}
-	}
-
-	comms.join().unwrap();
+	});
 }

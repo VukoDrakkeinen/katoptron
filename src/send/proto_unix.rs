@@ -2,48 +2,34 @@ extern crate crossbeam_channel;
 extern crate crossbeam;
 extern crate katoptron;
 
-use self::crossbeam_channel::{Sender, Receiver};
+use self::crossbeam_channel::Sender;
 use self::katoptron::Photon;
-use std::{mem, hint};
+use std::hint;
 use mirror;
 
-static mut MSG_CHANNEL: (Option<Sender<Photon>>, Option<Receiver<Photon>>) = (None, None);
+static mut SENDER: Option<Sender<Photon>> = None;
 
-unsafe fn init_message_channel() {
-	let (tx, rx) = crossbeam_channel::bounded(8);
-	MSG_CHANNEL = (Some(tx), Some(rx));
+unsafe fn init_message_channel(tx: Sender<Photon>) {
+	SENDER = Some(tx);
 }
 
 unsafe fn message_sender() -> &'static Sender<Photon> {
-	match MSG_CHANNEL.0 {
+	match SENDER {
 		Some(ref tx) => tx,
-		_ => hint::unreachable_unchecked()
-	}
-}
-
-unsafe fn message_receiver() -> Receiver<Photon> {
-	match MSG_CHANNEL.1.take() {
-		Some(rx) => rx,
-		_ => hint::unreachable_unchecked()
-	}
-}
-
-unsafe fn drop_message_channel() {
-	match MSG_CHANNEL.0.take() {
-		Some(tx) => mem::drop(tx),
-		_ => hint::unreachable_unchecked()
+		_ => hint::unreachable_unchecked(),
 	}
 }
 
 #[main]
 fn main() {
-	unsafe { init_message_channel(); }
+	let (tx, rx) = crossbeam_channel::bounded(8);
+	unsafe { init_message_channel(tx); }
 
 	crossbeam::scope(|scope| {
 		scope.builder().name(String::from("sender")).spawn(
-			move || mirror::notifications(unsafe{ message_receiver() })
+			move || mirror::notifications(rx)
 		).unwrap();
-		scope.defer(move || unsafe{ drop_message_channel() });
+		scope.defer(move || unsafe{ message_sender().disconnect(); });
 //		scope.defer(move || unsafe{ PostMessage(window_handle, WM_CLOSE, 0, 0) });
 
 		let notifications = unsafe{ message_sender() };
