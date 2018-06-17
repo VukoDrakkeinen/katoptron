@@ -3,17 +3,17 @@ extern crate crossbeam;
 extern crate katoptron;
 
 use self::crossbeam_channel::Sender;
-use self::katoptron::Photon;
+use self::katoptron::Notification;
 use std::hint;
 use mirror;
 
-static mut SENDER: Option<Sender<Photon>> = None;
+static mut SENDER: Option<Sender<Notification>> = None;
 
-unsafe fn init_message_channel(tx: Sender<Photon>) {
+unsafe fn init_message_channel(tx: Sender<Notification>) {
 	SENDER = Some(tx);
 }
 
-unsafe fn message_sender() -> &'static Sender<Photon> {
+unsafe fn message_sender() -> &'static Sender<Notification> {
 	match SENDER {
 		Some(ref tx) => tx,
 		_ => hint::unreachable_unchecked(),
@@ -36,11 +36,10 @@ fn main() {
 
 		let window_title = "Window Title";
 		let window_class = "Window Class";
-		notifications.send(Photon::Notification{ msg: format!("[created] {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
-		notifications.send(Photon::Flash{ msg: format!("[flashed]0 {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
-		notifications.send(Photon::Flash{ msg: String::from("another flash") }).unwrap();
-		notifications.send(Photon::Flash{ msg: format!("[flashed]1 {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
-		notifications.send(Photon::Heartbeat).unwrap();
+		notifications.send(Notification::Popup{ msg: format!("[created] {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
+		notifications.send(Notification::Flash{ msg: format!("[flashed]0 {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
+		notifications.send(Notification::Flash{ msg: String::from("another flash") }).unwrap();
+		notifications.send(Notification::Flash{ msg: format!("[flashed]1 {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
 	});
 }
 

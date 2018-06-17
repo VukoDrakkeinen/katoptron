@@ -14,7 +14,7 @@ extern crate crossbeam_channel;
 use self::crossbeam_channel::{Sender, Receiver};
 
 extern crate katoptron;
-use self::katoptron::Photon;
+use self::katoptron::Notification;
 
 #[macro_use]
 extern crate lazy_static;
@@ -26,13 +26,13 @@ use mirror;
 const SHELLHOOK_REG: LPCWSTR = wstr!["SHELLHOOK"];
 
 
-static mut SENDER: Option<Sender<Photon>> = None;
+static mut SENDER: Option<Sender<Notification>> = None;
 
-unsafe fn init_sender(tx: Sender<Photon>) {
+unsafe fn init_sender(tx: Sender<Notification>) {
 	SENDER = Some(tx);
 }
 
-unsafe fn message_sender() -> &'static Sender<Photon> {
+unsafe fn message_sender() -> &'static Sender<Notification> {
 	match SENDER {
 		Some(ref tx) => tx,
 		_ => hint::unreachable_unchecked(),
@@ -70,7 +70,7 @@ fn wnd_proc(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 					let window_title = String::from_utf16_lossy(&window_title);
 					let window_class = String::from_utf16_lossy(&window_class);
 					println!("[created] {title} {{{class}}}", title=window_title, class=window_class);
-					message_sender().send(Photon::Notification{ msg: format!("[created] {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
+					message_sender().send(Notification::Popup{ msg: format!("[created] {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
 				},
 
 				HSHELL_FLASH => {
@@ -79,7 +79,7 @@ fn wnd_proc(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 					let window_title = String::from_utf16_lossy(&window_title);
 					let window_class = String::from_utf16_lossy(&window_class);
 					println!("[flashed] {title} {{{class}}}", title=window_title, class=window_class);
-					message_sender().send(Photon::Flash{ msg: format!("[flashed] {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
+					message_sender().send(Notification::Flash{ msg: format!("[flashed] {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
 				},
 				_ => {}
 			}
@@ -96,6 +96,8 @@ fn wnd_proc(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 		}
 	}
 }
+
+//todo: use std::ptr::null
 
 #[main]
 fn main() {

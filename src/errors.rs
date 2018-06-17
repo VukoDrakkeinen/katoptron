@@ -148,6 +148,7 @@ pub trait FailExt {
 	fn cause_trace(&self) -> String;
 }
 
+//todo: [maybe someday] instead of returning string, return a struct that directly writes into the stream when printed
 impl<E: Fail> FailExt for E {
 	fn cause_trace(&self) -> String {
 		let mut trace = String::new();
