@@ -17,7 +17,7 @@ fn send_messages(notification_receiver: crossbeam_channel::Receiver<Notification
 	let (mut conn, server_name) = Connection::connect_to(&addr, String::from("client: ala ma kota"))?;
 	println!("Connected to server {} ({})", addr, server_name);
 
-	while let Ok(notification) = notification_receiver.recv() {
+	while let Some(notification) = notification_receiver.recv() {
 		conn.send_eavesdroppable_notification(notification)?;
 	}
 

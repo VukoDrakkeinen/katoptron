@@ -4,7 +4,7 @@ extern crate katoptron;
 
 use self::crossbeam_channel::Sender;
 use self::katoptron::Notification;
-use std::hint;
+use std::{mem, hint};
 use mirror;
 
 static mut SENDER: Option<Sender<Notification>> = None;
@@ -20,6 +20,13 @@ unsafe fn message_sender() -> &'static Sender<Notification> {
 	}
 }
 
+unsafe fn drop_message_sender() {
+	match SENDER.take() {
+		Some(tx) => mem::drop(tx),
+		_ => hint::unreachable_unchecked(),
+	}
+}
+
 #[main]
 fn main() {
 	let (tx, rx) = crossbeam_channel::bounded(8);
@@ -29,17 +36,17 @@ fn main() {
 		scope.builder().name(String::from("sender")).spawn(
 			move || mirror::notifications(rx)
 		).unwrap();
-		scope.defer(move || unsafe{ message_sender().disconnect(); });
+		scope.defer(move || unsafe{ drop_message_sender() });
 //		scope.defer(move || unsafe{ PostMessage(window_handle, WM_CLOSE, 0, 0) });
 
 		let notifications = unsafe{ message_sender() };
 
 		let window_title = "Window Title";
 		let window_class = "Window Class";
-		notifications.send(Notification::Popup{ msg: format!("[created] {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
-		notifications.send(Notification::Flash{ msg: format!("[flashed]0 {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
-		notifications.send(Notification::Flash{ msg: String::from("another flash") }).unwrap();
-		notifications.send(Notification::Flash{ msg: format!("[flashed]1 {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
+		notifications.send(Notification::Popup{ msg: format!("[created] {title} {{{class}}}", title=window_title, class=window_class) });
+		notifications.send(Notification::Flash{ msg: format!("[flashed]0 {title} {{{class}}}", title=window_title, class=window_class) });
+		notifications.send(Notification::Flash{ msg: String::from("another flash") });
+		notifications.send(Notification::Flash{ msg: format!("[flashed]1 {title} {{{class}}}", title=window_title, class=window_class) });
 	});
 }
 

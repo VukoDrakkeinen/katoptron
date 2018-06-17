@@ -43,7 +43,7 @@ fn serve(mut conn: Connection, client_name: String, flashes: Sender<String>) {
 				},
 				Notification::Flash{ msg } => {
 					println!("Flash: {}", msg);
-					flashes.send(msg).unwrap();
+					flashes.send(msg);
 				},
 			},
 			Err(e) => {

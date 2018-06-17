@@ -19,7 +19,7 @@ use self::katoptron::Notification;
 #[macro_use]
 extern crate lazy_static;
 
-use std::hint;
+use std::{mem, hint};
 use mirror;
 
 
@@ -35,6 +35,13 @@ unsafe fn init_sender(tx: Sender<Notification>) {
 unsafe fn message_sender() -> &'static Sender<Notification> {
 	match SENDER {
 		Some(ref tx) => tx,
+		_ => hint::unreachable_unchecked(),
+	}
+}
+
+unsafe fn drop_message_sender() {
+	match SENDER.take() {
+		Some(tx) => mem::drop(tx),
 		_ => hint::unreachable_unchecked(),
 	}
 }
@@ -70,7 +77,7 @@ fn wnd_proc(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 					let window_title = String::from_utf16_lossy(&window_title);
 					let window_class = String::from_utf16_lossy(&window_class);
 					println!("[created] {title} {{{class}}}", title=window_title, class=window_class);
-					message_sender().send(Notification::Popup{ msg: format!("[created] {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
+					message_sender().send(Notification::Popup{ msg: format!("[created] {title} {{{class}}}", title=window_title, class=window_class) });
 				},
 
 				HSHELL_FLASH => {
@@ -79,7 +86,7 @@ fn wnd_proc(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 					let window_title = String::from_utf16_lossy(&window_title);
 					let window_class = String::from_utf16_lossy(&window_class);
 					println!("[flashed] {title} {{{class}}}", title=window_title, class=window_class);
-					message_sender().send(Notification::Flash{ msg: format!("[flashed] {title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
+					message_sender().send(Notification::Flash{ msg: format!("[flashed] {title} {{{class}}}", title=window_title, class=window_class) });
 				},
 				_ => {}
 			}
@@ -135,7 +142,7 @@ fn main() {
 		scope.builder().name(String::from("sender")).spawn(
 			move || mirror::notifications(receiver)
 		).unwrap();
-		scope.defer(move || unsafe{ message_sender().disconnect(); });
+		scope.defer(move || unsafe{ drop_message_sender() });
 //		scope.defer(move || unsafe{ PostMessage(window_handle, WM_CLOSE, 0, 0) });
 
 		unsafe {

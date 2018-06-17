@@ -169,16 +169,20 @@ pub fn show(flashes: Receiver<String>) {
 	let iface = dbus::Interface::new("org.kde.StatusNotifierItem").unwrap();
 
 	let timeout = Duration::from_millis(50);
-	'processing: loop {
-		//only internally a loop
-		select_loop! {
+	loop {
+		select! {
 			recv(flashes, flash) => {
+				if let None = flash {
+					break;
+				}
+				let flash = flash.unwrap();
+
 				let last_flash_time = last_flash_times.entry(flash).or_insert(past);
 
 				//todo: [someday] anti-spam, n offences allowed, decays over time
 				let now = Instant::now();
 				if now - mem::replace(last_flash_time, now) <= FLASH_CUTOFF_INTERVAL {
-					continue 'processing;
+					continue;
 				}
 
 				unread_notification_count.set(unread_notification_count.get() + 1);
@@ -199,8 +203,7 @@ pub fn show(flashes: Receiver<String>) {
 				last_flash_times.retain(|_, &mut time| Instant::now() - time <= FLASH_EXPIRATION_INTERVAL);
 			},
 			//unfortunately there seems no easy way of selecting on both channel and dbus
-			timed_out(timeout) => for _ in dbus_conn.incoming(50) {} //todo: why is the timeout here necessary?
-			disconnected() => break 'processing,
+			recv(crossbeam_channel::after(timeout)) => for _ in dbus_conn.incoming(50) {} //todo: why is the timeout in dbus necessary?
 		}
 	}
 }
