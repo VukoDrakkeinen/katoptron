@@ -2,19 +2,19 @@
 #![feature(proc_macro_non_items)]
 
 extern crate winapi;
-use winapi::shared::minwindef::{UINT, WPARAM, LPARAM, LRESULT};
-use winapi::shared::windef::{HWND};
-use winapi::um::winnt::{LPCWSTR, LPWSTR};
+use self::winapi::shared::minwindef::{UINT, WPARAM, LPARAM, LRESULT};
+use self::winapi::shared::windef::{HWND};
+use self::winapi::um::winnt::{LPCWSTR, LPWSTR};
 
 extern crate wstr_macro;
-use wstr_macro::wstr;
+use self::wstr_macro::wstr;
 
 extern crate crossbeam;
 extern crate crossbeam_channel;
-use crossbeam_channel::{Sender, Receiver};
+use self::crossbeam_channel::{Sender, Receiver};
 
 extern crate katoptron;
-use katoptron::Photon;
+use self::katoptron::Photon;
 
 #[macro_use]
 extern crate lazy_static;
@@ -42,10 +42,10 @@ unsafe fn message_sender() -> &'static Sender<Photon> {
 
 unsafe extern "system"
 fn wnd_proc(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-	use winapi::um::winuser::{DefWindowProcW, RegisterWindowMessageW, PostQuitMessage};
-	use winapi::um::winuser::{GetWindowTextW, GetClassNameW};
-	use winapi::um::winuser::{HSHELL_WINDOWCREATED, HSHELL_FLASH};
-	use winapi::ctypes::{c_int};
+	use self::winapi::um::winuser::{DefWindowProcW, RegisterWindowMessageW, PostQuitMessage};
+	use self::winapi::um::winuser::{GetWindowTextW, GetClassNameW};
+	use self::winapi::um::winuser::{HSHELL_WINDOWCREATED, HSHELL_FLASH};
+	use self::winapi::ctypes::{c_int};
 	use std::ops::Deref;
 
 	lazy_static! {
@@ -100,11 +100,11 @@ fn wnd_proc(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 #[main]
 fn main() {
 	use std::mem;
-	use winapi::um::winuser::{CreateWindowExW, RegisterShellHookWindow, SetWindowLongPtrW};
-	use winapi::um::winuser::{GetMessageW, TranslateMessage, DispatchMessageW};
-	use winapi::um::winuser::{HWND_MESSAGE, GWLP_WNDPROC};
-	use winapi::shared::basetsd::LONG_PTR;
-	use winapi::ctypes::{c_void};
+	use self::winapi::um::winuser::{CreateWindowExW, RegisterShellHookWindow, SetWindowLongPtrW};
+	use self::winapi::um::winuser::{GetMessageW, TranslateMessage, DispatchMessageW};
+	use self::winapi::um::winuser::{HWND_MESSAGE, GWLP_WNDPROC};
+	use self::winapi::shared::basetsd::LONG_PTR;
+	use self::winapi::ctypes::{c_void};
 	use std::thread;
 
 //	let mut window_handle;
