@@ -2,8 +2,8 @@ extern crate crossbeam_channel;
 extern crate katoptron;
 extern crate failure;
 
-use std::net::{SocketAddr};
 use self::katoptron::{Notification, Connection, TxError, FailExt};
+use std::{net::SocketAddr, time::Duration};
 
 pub fn notifications(notification_receiver: crossbeam_channel::Receiver<Notification>) {
 	if let Err(e) = send_messages(notification_receiver) {
@@ -17,8 +17,19 @@ fn send_messages(notification_receiver: crossbeam_channel::Receiver<Notification
 	let (mut conn, server_name) = Connection::connect_to(&addr, String::from("client: ala ma kota"))?;
 	println!("Connected to server {} ({})", addr, server_name);
 
-	while let Some(notification) = notification_receiver.recv() {
-		conn.send_eavesdroppable_notification(notification)?;
+	let timeout = Duration::from_millis(1000);
+	loop {
+		select! {
+			recv(notification_receiver, notification) => {
+				if notification.is_none() {
+					break;
+				}
+				conn.send_eavesdroppable_notification(notification.unwrap())?;
+			},
+			recv(crossbeam_channel::after(timeout)) => {
+				conn.send_eavesdroppable_heartbeat()?;
+			},
+		}
 	}
 
 	conn.disconnect()?;

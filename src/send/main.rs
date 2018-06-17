@@ -5,6 +5,9 @@
 #[cfg(windows)]
 #[macro_use] extern crate lazy_static;
 
+#[macro_use]
+extern crate crossbeam_channel;
+
 //#[cfg(windows)]
 mod mirror;
 #[cfg(windows)]

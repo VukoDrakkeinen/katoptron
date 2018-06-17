@@ -172,7 +172,7 @@ pub fn show(flashes: Receiver<String>) {
 	loop {
 		select! {
 			recv(flashes, flash) => {
-				if let None = flash {
+				if flash.is_none() {
 					break;
 				}
 				let flash = flash.unwrap();
@@ -203,7 +203,7 @@ pub fn show(flashes: Receiver<String>) {
 				last_flash_times.retain(|_, &mut time| Instant::now() - time <= FLASH_EXPIRATION_INTERVAL);
 			},
 			//unfortunately there seems no easy way of selecting on both channel and dbus
-			recv(crossbeam_channel::after(timeout)) => for _ in dbus_conn.incoming(50) {} //todo: why is the timeout in dbus necessary?
+			recv(crossbeam_channel::after(timeout)) => for _ in dbus_conn.incoming(50) {}, //todo: why is the timeout in dbus necessary?
 		}
 	}
 }
