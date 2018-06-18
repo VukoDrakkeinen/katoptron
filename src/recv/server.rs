@@ -1,5 +1,5 @@
 extern crate katoptron;
-use self::katoptron::{Server, Connection, TxError, FailExt};
+use self::katoptron::{Server, PreConnection, TxError, FailExt};
 
 extern crate crossbeam;
 
@@ -19,11 +19,11 @@ pub fn listen(flashes: Sender<String>) -> Result<(), TxError> {
 	crossbeam::scope(|scope| {
 		loop {
 			match server.accept() {
-				Ok((conn, client_name)) => {
+				Ok(preconn) => {
 					//todo: [someday] threadpool/async
-					scope.builder().name(client_name.clone()).spawn({
+					scope.builder().name(String::from("receiver")).spawn({
 						let flashes = flashes.clone();
-						move || serve(conn, client_name, flashes)
+						move || receive(preconn, flashes)
 					}).unwrap();
 				}
 				Err(e) => {
@@ -36,7 +36,12 @@ pub fn listen(flashes: Sender<String>) -> Result<(), TxError> {
 	Ok(())
 }
 
-fn serve(mut conn: Connection, client_name: String, flashes: Sender<String>) {
+fn receive(preconn: PreConnection, flashes: Sender<String>) {
+	let (mut conn, client_name) = match preconn.await_handshake() {
+		Ok(ret) => ret,
+		Err(e) => return eprintln!("{}", e.cause_trace()),
+	};
+
 	loop {
 		use self::katoptron::Notification;
 		match conn.recv_notification() {
@@ -50,8 +55,7 @@ fn serve(mut conn: Connection, client_name: String, flashes: Sender<String>) {
 				},
 			},
 			Err(e) => {
-				eprintln!("{}: {}", client_name, e.cause_trace());
-				break;
+				break eprintln!("{}: {}", client_name, e.cause_trace());
 			}
 		}
 	}

@@ -59,13 +59,23 @@ impl Server {
 		Ok(Server{ listener, name: server_name })
 	}
 
-	//todo: return PreConnection here (Server::accept() -> PreConnection::handshake() -> Connection::recv())
-	pub fn accept(&mut self) -> Result<(Connection, String), TxError> {
+	pub fn accept(&mut self) -> Result<PreConnection, TxError> {
 		let (stream, _) = self.listener.accept().with_context(|| "accepting connection")?;
+		Ok(PreConnection{ inner: Connection::new(stream), server_name: self.name.clone() })
+	}
+}
 
-		let mut conn = Connection::new(stream);
-		let client_name = conn.respond_to_handshake(self.name.clone())?;
-		Ok((conn, client_name))
+pub struct PreConnection {
+	inner: Connection,
+	server_name: String,
+}
+
+impl PreConnection {
+	pub fn await_handshake(mut self) -> Result<(Connection, String), TxError> {
+//		let client_addr = self.inner.stream.peer_addr().unwrap();
+//		let client_name = self.inner.respond_to_handshake(self.server_name).with_context(|| format!("handshaking with {}", client_addr) )?; //todo
+		let client_name = self.inner.respond_to_handshake(self.server_name)?;
+		Ok((self.inner, client_name))
 	}
 }
 
@@ -98,6 +108,7 @@ impl Connection {
 		Err(TxError::HandshakeFailure)
 	}
 
+	//todo: should probably return HandshakeFailure if we receive garbage data
 	fn respond_to_handshake(&mut self, self_name: String) -> Result<String, TxError> {
 		if let Message::Handshake{ protocol_version, peer_name } = self.recv_message()? {
 			self.send_handshake(self_name)?;
