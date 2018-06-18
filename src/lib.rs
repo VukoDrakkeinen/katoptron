@@ -59,6 +59,7 @@ impl Server {
 		Ok(Server{ listener, name: server_name })
 	}
 
+	//todo: return PreConnection here (Server::accept() -> PreConnection::handshake() -> Connection::recv())
 	pub fn accept(&mut self) -> Result<(Connection, String), TxError> {
 		let (stream, _) = self.listener.accept().with_context(|| "accepting connection")?;
 

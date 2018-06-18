@@ -23,12 +23,12 @@ crossbeam-channel = "^0.2.1"
 wstr_macro = { path = "wstr_macro" }
 
 [target."cfg(unix)".dependencies]
-lazy_static = { version = "^1.0", features = ["nightly"] }
+lazy_static = { version = "^1.0.1", features = ["nightly"] }
 dbus = "^0.6.1"
 notify-rust = "^3.4"
 
 [target."cfg(windows)".dependencies]
-lazy_static = "^1.0"
+lazy_static = "^1.0.1"
 winapi = { version = "^0.3.4", features = ["winuser"] }
 
 [lib]
@@ -44,7 +44,6 @@ name = "katoptron-recv"
 path = "src/recv/main.rs"
 
 [patch.crates-io]
-lazy_static = { git = "https://github.com/superp00t/lazy-static.rs" }
 failure = { git = "https://github.com/rust-lang-nursery/failure/" }
 failure_derive = { git = "https://github.com/rust-lang-nursery/failure/" }
 display_derive = { git = "https://github.com/withoutboats/display_derive" }

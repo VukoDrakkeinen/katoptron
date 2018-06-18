@@ -128,7 +128,7 @@ dependencies = [
  "arrayvec 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "cfg-if 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "crossbeam-utils 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "lazy_static 1.0.0 (git+https://github.com/superp00t/lazy-static.rs)",
+ "lazy_static 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "memoffset 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "scopeguard 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -243,7 +243,7 @@ dependencies = [
  "failure 1.0.0 (git+https://github.com/rust-lang-nursery/failure/)",
  "failure_derive 1.0.0 (git+https://github.com/rust-lang-nursery/failure/)",
  "hostname 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "lazy_static 1.0.0 (git+https://github.com/superp00t/lazy-static.rs)",
+ "lazy_static 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "notify-rust 3.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.45 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.45 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -253,8 +253,8 @@ dependencies = [
 
 [[package]]
 name = "lazy_static"
-version = "1.0.0"
-source = "git+https://github.com/superp00t/lazy-static.rs#288cd55f3a02bfd831487f67391316362f5af7be"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "libc"
@@ -660,7 +660,7 @@ dependencies = [
 "checksum fuchsia-zircon-sys 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "3dcaa9ae7725d12cdb85b3ad99a434db70b468c09ded17e012d86b5c1010f7a7"
 "checksum gcc 0.3.54 (registry+https://github.com/rust-lang/crates.io-index)" = "5e33ec290da0d127825013597dbdfc28bee4964690c7ce1166cbc2a7bd08b1bb"
 "checksum hostname 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "21ceb46a83a85e824ef93669c8b390009623863b5c195d1ba747292c0c72f94e"
-"checksum lazy_static 1.0.0 (git+https://github.com/superp00t/lazy-static.rs)" = "<none>"
+"checksum lazy_static 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)" = "e6412c5e2ad9584b0b8e979393122026cdd6d2a80b933f890dcd694ddbe73739"
 "checksum libc 0.2.42 (registry+https://github.com/rust-lang/crates.io-index)" = "b685088df2b950fccadf07a7187c8ef846a959c142338a48f9dc0b94517eb5f1"
 "checksum libdbus-sys 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "8720f9274907052cb50313f91201597868da9d625f8dd125f2aca5bddb7e83a1"
 "checksum mac-notification-sys 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "6a3639b6caa2db7443e5df80e12c450982f77fc3c140f53d6e48be91f965ea66"
