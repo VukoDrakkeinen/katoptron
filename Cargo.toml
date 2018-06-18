@@ -10,10 +10,10 @@ members = ["wstr_macro"]
 
 [dependencies]
 clap = "^2.31"
-#net2 = "^0.2"
 serde = "^1.0.45"
 bincode = "^1.0"
 failure = "^1.0"
+hostname = "^0.1"
 byteorder = "^1.2.2"
 crossbeam = "^0.3.2"
 serde_derive = "^1.0.45"

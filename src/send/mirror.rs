@@ -1,5 +1,6 @@
 extern crate crossbeam_channel;
 extern crate katoptron;
+extern crate hostname;
 extern crate failure;
 
 use self::katoptron::{Notification, Connection, TxError, FailExt};
@@ -13,8 +14,9 @@ pub fn notifications(notification_receiver: crossbeam_channel::Receiver<Notifica
 }
 
 fn send_messages(notification_receiver: crossbeam_channel::Receiver<Notification>) -> Result<(), TxError> {
+	let name = hostname::get_hostname().unwrap_or_else(|| String::from("katoptron client"));
 	let addr = SocketAddr::from(([127, 0, 0, 1], 8888));
-	let (mut conn, server_name) = Connection::connect_to(&addr, String::from("client: ala ma kota"))?;
+	let (mut conn, server_name) = Connection::connect_to(&addr, name)?;
 	println!("Connected to server {} ({})", addr, server_name);
 
 	let timeout = Duration::from_millis(1000);
