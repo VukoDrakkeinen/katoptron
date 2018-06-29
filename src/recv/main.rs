@@ -13,3 +13,5 @@ mod status_notifier;
 
 #[cfg(windows)]
 fn main() { panic!("Unix only!"); }
+
+//if we ever need an icon: must be a robocat; megatron <-> katoptron == mirror, get it? 8^)

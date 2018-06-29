@@ -7,6 +7,12 @@ use std::io;
 use std::fmt::{self, Display};
 use std::convert::From;
 
+//todo: thoughts on failure::Error, downcasting and type-erasure:
+//      so we dont't lose most of the benefits of non-type-erased
+//      errors, alias failure::Error to different names
+//      e.g.: type TxError = failure::Error and then document
+//      variants for each name
+
 
 #[derive(Fail, Debug, Display)]
 pub enum TxError {
