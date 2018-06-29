@@ -1,23 +1,17 @@
-#![feature(proc_macro)]
-#![feature(proc_macro_non_items)]
-
 extern crate winapi;
 use self::winapi::shared::minwindef::{UINT, WPARAM, LPARAM, LRESULT};
 use self::winapi::shared::windef::{HWND};
-use self::winapi::um::winnt::{LPCWSTR, LPWSTR};
+use self::winapi::um::winnt::LPCWSTR;
 
 extern crate wstr_macro;
 use self::wstr_macro::wstr;
 
 extern crate crossbeam;
 extern crate crossbeam_channel;
-use self::crossbeam_channel::{Sender, Receiver};
+use self::crossbeam_channel::Sender;
 
 extern crate katoptron;
 use self::katoptron::Notification;
-
-#[macro_use]
-extern crate lazy_static;
 
 use std::{mem, hint};
 use mirror;
@@ -46,24 +40,26 @@ unsafe fn drop_message_sender() {
 	}
 }
 
-
 unsafe extern "system"
 fn wnd_proc(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 	use self::winapi::um::winuser::{DefWindowProcW, RegisterWindowMessageW, PostQuitMessage};
 	use self::winapi::um::winuser::{GetWindowTextW, GetClassNameW};
-	use self::winapi::um::winuser::{HSHELL_WINDOWCREATED, HSHELL_FLASH};
+	use self::winapi::um::winuser::{WM_DESTROY, HSHELL_WINDOWCREATED, HSHELL_FLASH};
 	use self::winapi::ctypes::{c_int};
 	use std::ops::Deref;
+	use std::char;
 
 	lazy_static! {
 		static ref SHELLHOOK_VAL: UINT = unsafe {
 			RegisterWindowMessageW(SHELLHOOK_REG)
 		};
 	}
+	#[allow(non_snake_case)]
 	let SHELLHOOK: UINT = *SHELLHOOK_VAL.deref();
 
 	match msg {
-		SHELLHOOK => {
+		//the fuck does SHELLHOOK => match everything?!
+		_ if msg == SHELLHOOK => {
 			let event_type = wparam as i32;
 			let window_handle = lparam as HWND;
 
@@ -74,26 +70,26 @@ fn wnd_proc(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 				HSHELL_WINDOWCREATED => {
 					GetWindowTextW(window_handle, window_title.as_mut_ptr(), window_title.len() as c_int);
 					GetClassNameW( window_handle, window_class.as_mut_ptr(), window_class.len() as c_int);
-					let window_title = String::from_utf16_lossy(&window_title);
-					let window_class = String::from_utf16_lossy(&window_class);
-					println!("[created] {title} {{{class}}}", title=window_title, class=window_class);
-					message_sender().send(Notification::Popup{ msg: format!("[created] {title} {{{class}}}", title=window_title, class=window_class) });
+					let window_title: String = char::decode_utf16(window_title.iter().cloned()).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)).take_while(|c| *c != '\0').collect();
+					let window_class: String = char::decode_utf16(window_class.iter().cloned()).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)).take_while(|c| *c != '\0').collect();
+					println!("{title} {{{class}}}", title=window_title, class=window_class);
+					message_sender().send(Notification::Popup{ msg: format!("{title} {{{class}}}", title=window_title, class=window_class) });
 				},
 
 				HSHELL_FLASH => {
 					GetWindowTextW(window_handle, window_title.as_mut_ptr(), window_title.len() as c_int);
 					GetClassNameW( window_handle, window_class.as_mut_ptr(), window_class.len() as c_int);
-					let window_title = String::from_utf16_lossy(&window_title);
-					let window_class = String::from_utf16_lossy(&window_class);
-					println!("[flashed] {title} {{{class}}}", title=window_title, class=window_class);
-					message_sender().send(Notification::Flash{ msg: format!("[flashed] {title} {{{class}}}", title=window_title, class=window_class) });
+					let window_title: String = char::decode_utf16(window_title.iter().cloned()).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)).take_while(|c| *c != '\0').collect();
+					let window_class: String = char::decode_utf16(window_class.iter().cloned()).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)).take_while(|c| *c != '\0').collect();
+					println!("{title} {{{class}}}", title=window_title, class=window_class);
+					message_sender().send(Notification::Flash{ msg: format!("{title} {{{class}}}", title=window_title, class=window_class) });
 				},
 				_ => {}
 			}
 
 			0
 		},
-		WM_DESTROY => {
+		_ if msg == WM_DESTROY => {
 //			message_sender().disconnect();
 			PostQuitMessage(0);
 			0
@@ -114,13 +110,12 @@ fn main() {
 	use self::winapi::um::winuser::{HWND_MESSAGE, GWLP_WNDPROC};
 	use self::winapi::shared::basetsd::LONG_PTR;
 	use self::winapi::ctypes::{c_void};
-	use std::thread;
 
 //	let mut window_handle;
 	unsafe {
 		let window_handle = CreateWindowExW(
 			/*style:*/ 0,
-			/*class:*/ 0 as LPCWSTR,
+			/*class:*/ wstr!["Message"],
 			/*title:*/ 0 as LPCWSTR,
 			/*style:*/ 0,
 			/*x & y:*/ 0, 0,
