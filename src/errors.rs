@@ -29,9 +29,9 @@ pub enum TxError {
 impl TxError {
 	pub fn kind(&self) -> TxErrorKind {
 		match self {
-			&TxError::HandshakeFailure         => return TxErrorKind::HandshakeFailure,
-			&TxError::IncompatibleProtocol{..} => return TxErrorKind::IncompatibleProtocol,
-			&TxError::Generic(_, kind)         => return kind,
+			&TxError::HandshakeFailure         => TxErrorKind::HandshakeFailure,
+			&TxError::IncompatibleProtocol{..} => TxErrorKind::IncompatibleProtocol,
+			&TxError::Generic(_, kind)         => kind,
 		}
 	}
 }
@@ -63,11 +63,11 @@ pub enum RecvError {
 
 impl RecvError {
 	pub fn kind(&self) -> RecvErrorKind {
-		match self {
-			&RecvError::GarbageData                      => return RecvErrorKind::GarbageData,
-			&RecvError::PayloadTooLarge                  => return RecvErrorKind::PayloadTooLarge,
-			&RecvError::PayloadDeserializationFailure(_) => return RecvErrorKind::PayloadDeserializationFailure,
-			&RecvError::Generic(_, kind)                 => return kind,
+		match *self {
+			RecvError::GarbageData                      => RecvErrorKind::GarbageData,
+			RecvError::PayloadTooLarge                  => RecvErrorKind::PayloadTooLarge,
+			RecvError::PayloadDeserializationFailure(_) => RecvErrorKind::PayloadDeserializationFailure,
+			RecvError::Generic(_, kind)                 => kind,
 		}
 	}
 }
@@ -95,9 +95,9 @@ pub enum SendError {
 
 impl SendError {
 	pub fn kind(&self) -> SendErrorKind {
-		match self {
-			&SendError::PayloadSerializationFailure{..} => return SendErrorKind::PayloadSerializationFailure,
-			&SendError::Generic(_, kind)                => return kind,
+		match *self {
+			SendError::PayloadSerializationFailure{..} => SendErrorKind::PayloadSerializationFailure,
+			SendError::Generic(_, kind)                => kind,
 		}
 	}
 }
