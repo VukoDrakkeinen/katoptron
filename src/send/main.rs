@@ -13,6 +13,9 @@ extern crate wstr_macro;
 #[macro_use]
 extern crate crossbeam_channel;
 
+#[cfg(windows)]
+#[macro_use(defer)] extern crate scopeguard;
+
 //#[cfg(windows)]
 mod mirror;
 #[cfg(windows)]

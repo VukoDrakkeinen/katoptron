@@ -14,6 +14,7 @@ use std::convert::From;
 //      variants for each name
 
 
+
 #[derive(Fail, Debug, Display)]
 pub enum TxError {
 	#[display(fmt = "Handshake failure")]

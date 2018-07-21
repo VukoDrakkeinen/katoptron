@@ -1,0 +1,20 @@
+[config]
+default_server = "192.168.122.1:8888"
+
+[[mirror]]
+event_type = "flash"
+message = "{title}"
+noisy = true
+
+	[match_on]
+	window_class = "Knox"
+	window_title = "Kapron"
+
+
+
+[[mirror]]
+event_type = "popup"
+
+	[match_on]
+	window_class = "outlook\\.baloon"
+

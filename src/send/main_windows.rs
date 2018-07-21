@@ -13,6 +13,8 @@ use self::crossbeam_channel::Sender;
 extern crate katoptron;
 use self::katoptron::Notification;
 
+extern crate scopeguard;
+
 use std::{mem, hint};
 use mirror;
 
@@ -57,47 +59,43 @@ fn wnd_proc(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 	#[allow(non_snake_case)]
 	let SHELLHOOK: UINT = *SHELLHOOK_VAL.deref();
 
-	match msg {
-		//the fuck does SHELLHOOK => match everything?!
-		_ if msg == SHELLHOOK => {
-			let event_type = wparam as i32;
-			let window_handle = lparam as HWND;
+	if msg == SHELLHOOK {
+		let event_type = wparam as i32;
+		let window_handle = lparam as HWND;
 
-			let mut window_title = [0u16; 2048];
-			let mut window_class = [0u16; 2048];
+		let mut window_title = [0u16; 2048];
+		let mut window_class = [0u16; 2048];
 
-			match event_type {
-				HSHELL_WINDOWCREATED => {
-					GetWindowTextW(window_handle, window_title.as_mut_ptr(), window_title.len() as c_int);
-					GetClassNameW( window_handle, window_class.as_mut_ptr(), window_class.len() as c_int);
-					let window_title: String = char::decode_utf16(window_title.iter().cloned()).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)).take_while(|c| *c != '\0').collect();
-					let window_class: String = char::decode_utf16(window_class.iter().cloned()).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)).take_while(|c| *c != '\0').collect();
-					println!("{title} {{{class}}}", title=window_title, class=window_class);
-					message_sender().send(Notification::Popup{ msg: format!("{title} {{{class}}}", title=window_title, class=window_class) });
-				},
+		match event_type {
+			HSHELL_WINDOWCREATED => {
+				GetWindowTextW(window_handle, window_title.as_mut_ptr(), window_title.len() as c_int);
+				GetClassNameW( window_handle, window_class.as_mut_ptr(), window_class.len() as c_int);
+				let window_title: String = char::decode_utf16(window_title.iter().cloned()).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)).take_while(|c| *c != '\0').collect();
+				let window_class: String = char::decode_utf16(window_class.iter().cloned()).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)).take_while(|c| *c != '\0').collect();
+				println!("{title} {{{class}}}", title=window_title, class=window_class);
+				message_sender().send(Notification::Popup{ msg: format!("{title} {{{class}}}", title=window_title, class=window_class) });
+			},
 
-				HSHELL_FLASH => {
-					GetWindowTextW(window_handle, window_title.as_mut_ptr(), window_title.len() as c_int);
-					GetClassNameW( window_handle, window_class.as_mut_ptr(), window_class.len() as c_int);
-					let window_title: String = char::decode_utf16(window_title.iter().cloned()).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)).take_while(|c| *c != '\0').collect();
-					let window_class: String = char::decode_utf16(window_class.iter().cloned()).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)).take_while(|c| *c != '\0').collect();
-					println!("{title} {{{class}}}", title=window_title, class=window_class);
-					message_sender().send(Notification::Flash{ msg: format!("{title} {{{class}}}", title=window_title, class=window_class) });
-				},
-				_ => {}
-			}
-
-			0
-		},
-		_ if msg == WM_DESTROY => {
-//			message_sender().disconnect();
-			PostQuitMessage(0);
-			0
-		},
-		_ => {
-			DefWindowProcW(hwnd, msg, wparam, lparam)
+			HSHELL_FLASH => {
+				GetWindowTextW(window_handle, window_title.as_mut_ptr(), window_title.len() as c_int);
+				GetClassNameW( window_handle, window_class.as_mut_ptr(), window_class.len() as c_int);
+				let window_title: String = char::decode_utf16(window_title.iter().cloned()).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)).take_while(|c| *c != '\0').collect();
+				let window_class: String = char::decode_utf16(window_class.iter().cloned()).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)).take_while(|c| *c != '\0').collect();
+				println!("{title} {{{class}}}", title=window_title, class=window_class);
+				message_sender().send(Notification::Flash{ msg: format!("{title} {{{class}}}", title=window_title, class=window_class) });
+			},
+			_ => {}
 		}
+
+		return 0;
 	}
+
+	if msg == WM_DESTROY {
+		PostQuitMessage(0);
+		return 0;
+	}
+
+	DefWindowProcW(hwnd, msg, wparam, lparam)
 }
 
 //todo: use std::ptr::null
@@ -111,8 +109,7 @@ fn main() {
 	use self::winapi::shared::basetsd::LONG_PTR;
 	use self::winapi::ctypes::{c_void};
 
-//	let mut window_handle;
-	unsafe {
+	let window_handle = unsafe {
 		let window_handle = CreateWindowExW(
 			/*style:*/ 0,
 			/*class:*/ wstr!["Message"],
@@ -127,18 +124,18 @@ fn main() {
 		);
 		RegisterShellHookWindow(window_handle);
 		SetWindowLongPtrW(window_handle, GWLP_WNDPROC, wnd_proc as LONG_PTR);
+		window_handle
 	};
-//	let window_handle = window_handle;
-
-	let (sender, receiver) = crossbeam_channel::bounded(8);
-	unsafe { init_sender(sender); }
 
 	crossbeam::scope(|scope| {
-		scope.builder().name(String::from("sender")).spawn(
-			move || mirror::notifications(receiver)
-		).unwrap();
+		let (sender, receiver) = crossbeam_channel::bounded(8);
+		unsafe { init_sender(sender); }
 		scope.defer(move || unsafe{ drop_message_sender() });
-//		scope.defer(move || unsafe{ PostMessage(window_handle, WM_CLOSE, 0, 0) });
+
+		scope.builder().name(String::from("sender")).spawn(move || {
+			let _finally = scopeguard::guard((), move |_| unsafe { PostMessage(window_handle, WM_CLOSE, 0, 0) });
+			mirror::notifications(receiver);
+		}).unwrap();
 
 		unsafe {
 			let mut msg = mem::zeroed();

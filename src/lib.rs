@@ -114,7 +114,7 @@ impl Connection {
 			self.send_handshake(self_name)?;
 
 			if protocol_version > PROTOCOL_VERSION {
-				return Err(TxError::IncompatibleProtocol{ version: protocol_version});
+				return Err(TxError::IncompatibleProtocol{ version: protocol_version });
 			}
 
 			return Ok(peer_name);

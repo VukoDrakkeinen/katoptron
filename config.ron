@@ -1,0 +1,21 @@
+(
+	default_server: "192.168.122.1", //"192.168.122.1:8888"? [192, 168, 122, 1]? ((192, 168, 122, 1), 8888)?
+	mirror: [
+		(
+			event_type: Flash,
+			noisy: true,
+			match_on: {
+				window_title: "Knox",
+				window_class: "Kapron",
+			},
+			message: "{title}/(.*) Knox Messanger/Message from $1/",
+		),
+		(
+			event_type: Popup,
+			match_on: {
+				window_class: "outlook\\.baloon",
+			},
+			message: "New mail",
+		),
+	],
+)
