@@ -6,6 +6,7 @@ use self::crossbeam_channel::Sender;
 use self::katoptron::Notification;
 use std::{mem, hint};
 use mirror;
+use cli;
 
 static mut SENDER: Option<Sender<Notification>> = None;
 
@@ -29,12 +30,13 @@ unsafe fn drop_message_sender() {
 
 #[main]
 fn main() {
+	let (server_address, _config_path) = cli::args();
 	let (tx, rx) = crossbeam_channel::bounded(8);
 	unsafe { init_message_channel(tx); }
 
 	crossbeam::scope(|scope| {
 		scope.builder().name(String::from("sender")).spawn(
-			move || mirror::notifications(rx)
+			move || mirror::notifications(server_address, rx)
 		).unwrap();
 		scope.defer(move || unsafe{ drop_message_sender() });
 //		scope.defer(move || unsafe{ PostMessage(window_handle, WM_CLOSE, 0, 0) });

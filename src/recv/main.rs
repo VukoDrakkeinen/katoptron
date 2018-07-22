@@ -4,6 +4,9 @@
 #[macro_use]
 extern crate crossbeam_channel;
 
+#[macro_use]
+extern crate clap;
+
 mod server;
 
 #[cfg(unix)]

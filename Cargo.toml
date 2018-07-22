@@ -13,6 +13,7 @@ members = ["wstr_macro"]
 
 [dependencies]
 clap = "^2.31"
+dirs = "^1.0.2"
 serde = "^1.0.45"
 bincode = "^1.0"
 failure = "^1.0"

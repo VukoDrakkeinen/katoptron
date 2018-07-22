@@ -1,7 +1,6 @@
 #![feature(nll)]
 #![feature(main)]
 #![feature(unreachable)]
-#![feature(proc_macro)]
 #![feature(proc_macro_non_items)]
 
 #[cfg(windows)]
@@ -16,8 +15,12 @@ extern crate crossbeam_channel;
 #[cfg(windows)]
 #[macro_use(defer)] extern crate scopeguard;
 
+#[macro_use]
+extern crate clap;
+
 //#[cfg(windows)]
 mod mirror;
+mod cli;
 #[cfg(windows)]
 mod main_windows;
 

@@ -7,24 +7,23 @@ use crossbeam_channel::Receiver;
 use self::katoptron::{Notification, Connection, TxError, FailExt};
 use std::{net::SocketAddr, time::Duration};
 
-pub fn notifications(notification_receiver: Receiver<Notification>) {
-	if let Err(e) = send_messages(notification_receiver) {
+pub fn notifications(server_address: SocketAddr, notification_receiver: Receiver<Notification>) {
+	if let Err(e) = send_messages(server_address, notification_receiver) {
 		eprintln!("{}", e.cause_trace());
 		//todo: exit error code
 	}
 }
 
-fn send_messages(notification_receiver: Receiver<Notification>) -> Result<(), TxError> {
+fn send_messages(server_address: SocketAddr, notification_receiver: Receiver<Notification>) -> Result<(), TxError> {
 	let name = hostname::get_hostname().unwrap_or_else(|| String::from("katoptron client"));
-	let addr = SocketAddr::from(([127, 0, 0, 1], 8888));
-	let (mut conn, server_name) = Connection::connect_to(&addr, name)?; //errors: HandshakeFailure <- GarbageData | ProtocolDowngrade | Timeout
-	println!("Connected to server {} ({})", addr, server_name);
+	let (mut conn, server_name) = Connection::connect_to(&server_address, name)?; //errors: HandshakeFailure <- GarbageData | ProtocolDowngrade | Timeout
+	println!("Connected to server {} ({})", server_address, server_name);
 
 	let timeout = Duration::from_millis(1000);
 	loop {
 		select! {
 			recv(notification_receiver, notification) => {
-				if Some(notification) = notification {
+				if let Some(notification) = notification {
 					conn.send_eavesdroppable_notification(notification)?; //errors: SerializationFailure | PayloadTooLarge | NetworkError <- IoError
 				} else {
 					break;

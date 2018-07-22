@@ -17,6 +17,7 @@ extern crate scopeguard;
 
 use std::{mem, hint};
 use mirror;
+use cli;
 
 
 const SHELLHOOK_REG: LPCWSTR = wstr!["SHELLHOOK"];
@@ -24,7 +25,7 @@ const SHELLHOOK_REG: LPCWSTR = wstr!["SHELLHOOK"];
 
 static mut SENDER: Option<Sender<Notification>> = None;
 
-unsafe fn init_sender(tx: Sender<Notification>) {
+unsafe fn init_message_sender(tx: Sender<Notification>) {
 	SENDER = Some(tx);
 }
 
@@ -109,6 +110,8 @@ fn main() {
 	use self::winapi::shared::basetsd::LONG_PTR;
 	use self::winapi::ctypes::{c_void};
 
+	let (server_address, _config_path) = cli::args();
+
 	let window_handle = unsafe {
 		let window_handle = CreateWindowExW(
 			/*style:*/ 0,
@@ -129,12 +132,12 @@ fn main() {
 
 	crossbeam::scope(|scope| {
 		let (sender, receiver) = crossbeam_channel::bounded(8);
-		unsafe { init_sender(sender); }
+		unsafe { init_message_sender(sender); }
 		scope.defer(move || unsafe{ drop_message_sender() });
 
 		scope.builder().name(String::from("sender")).spawn(move || {
 			let _finally = scopeguard::guard((), move |_| unsafe { PostMessage(window_handle, WM_CLOSE, 0, 0) });
-			mirror::notifications(receiver);
+			mirror::notifications(server_address, receiver);
 		}).unwrap();
 
 		unsafe {

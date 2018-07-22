@@ -11,9 +11,9 @@ extern crate hostname;
 use std::net::SocketAddr;
 
 
-pub fn listen(flashes: Sender<String>) -> Result<(), TxError> {
+pub fn listen(port: u16, flashes: Sender<String>) -> Result<(), TxError> {
 	let name = hostname::get_hostname().unwrap_or_else(|| String::from("katoptron server"));
-	let recv_addr = SocketAddr::from(([127, 0, 0, 1], 8888));
+	let recv_addr = SocketAddr::from(([127, 0, 0, 1], port));
 	let mut server = Server::listen_on(recv_addr, name)?; //errors: UnableToBindAddress
 
 	crossbeam::scope(|scope| {
