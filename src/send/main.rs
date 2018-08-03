@@ -1,9 +1,14 @@
 #![feature(nll)]
 #![feature(main)]
 #![feature(unreachable)]
+#![feature(proc_macro)]
+#![feature(proc_macro_non_items)]
 
 #[cfg(windows)]
 #[macro_use] extern crate lazy_static;
+
+#[cfg(windows)]
+extern crate wstr_macro;
 
 #[macro_use]
 extern crate crossbeam_channel;
