@@ -1,5 +1,3 @@
-cargo-features = ["edition"]
-
 [package]
 name = "katoptron"
 version = "0.2.0"
@@ -12,6 +10,7 @@ publish = false
 members = ["wstr_macro"]
 
 [dependencies]
+ron = "^0.3.0"
 clap = "^2.31"
 dirs = "^1.0.2"
 serde = "^1.0.45"

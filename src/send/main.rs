@@ -1,6 +1,5 @@
 #![feature(nll)]
 #![feature(main)]
-#![feature(unreachable)]
 #![feature(proc_macro_non_items)]
 
 #[cfg(windows)]
