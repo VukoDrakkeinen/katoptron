@@ -1,3 +1,4 @@
+#![feature(rust_2018_preview)]
 #![feature(nll)]
 #![feature(main)]
 #![feature(proc_macro_non_items)]

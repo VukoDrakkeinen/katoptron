@@ -1,3 +1,4 @@
+#![feature(rust_2018_preview)]
 #![feature(nll)]
 #![feature(box_syntax)]
 
