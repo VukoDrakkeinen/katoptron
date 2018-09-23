@@ -9,8 +9,8 @@ extern crate clap;
 
 extern crate dirs;
 
-use status_notifier;
-use server;
+use crate::status_notifier;
+use crate::server;
 
 fn args() -> (u16) {
 	use self::clap::{Error as ClapError, ErrorKind as ClapErrorKind};

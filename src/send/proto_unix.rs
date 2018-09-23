@@ -5,8 +5,8 @@ extern crate katoptron;
 use self::crossbeam_channel::Sender;
 use self::katoptron::Notification;
 use std::{mem, hint};
-use mirror;
-use cli;
+use crate::mirror;
+use crate::cli;
 
 static mut SENDER: Option<Sender<Notification>> = None;
 

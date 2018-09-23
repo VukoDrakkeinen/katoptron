@@ -1,4 +1,3 @@
-#![feature(rust_2018_preview)]
 #![feature(nll)]
 #![feature(box_syntax)]
 
@@ -24,7 +23,7 @@ use std::io::{self, Read, Write};
 use std::net::{self, SocketAddr, TcpListener, TcpStream};
 
 mod errors;
-pub use errors::*;
+pub use crate::errors::*;
 
 
 const BUFFER_SIZE: usize     = 1024;
