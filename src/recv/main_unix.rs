@@ -1,13 +1,13 @@
-extern crate crossbeam;
+use crossbeam;
 
-extern crate katoptron;
+use katoptron;
 use self::katoptron::FailExt;
 
-extern crate crossbeam_channel;
+use crossbeam_channel;
 
-extern crate clap;
+use clap;
 
-extern crate dirs;
+
 
 use crate::status_notifier;
 use crate::server;

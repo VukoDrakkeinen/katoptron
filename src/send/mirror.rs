@@ -1,7 +1,7 @@
-extern crate crossbeam_channel;
-extern crate katoptron;
-extern crate hostname;
-extern crate failure;
+use crossbeam_channel;
+use katoptron;
+use hostname;
+
 
 use crossbeam_channel::Receiver;
 use self::katoptron::{Notification, Connection, TxError, FailExt};

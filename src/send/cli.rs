@@ -1,5 +1,5 @@
-extern crate clap;
-extern crate dirs;
+use clap;
+use dirs;
 
 use std::{net::SocketAddr, path::PathBuf};
 

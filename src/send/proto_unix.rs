@@ -1,6 +1,6 @@
-extern crate crossbeam_channel;
-extern crate crossbeam;
-extern crate katoptron;
+use crossbeam_channel;
+use crossbeam;
+use katoptron;
 
 use self::crossbeam_channel::Sender;
 use self::katoptron::Notification;

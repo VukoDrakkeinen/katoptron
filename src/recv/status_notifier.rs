@@ -1,9 +1,9 @@
-extern crate dbus;
+use dbus;
 
-extern crate notify_rust;
+use notify_rust;
 use self::notify_rust::{Notification, NotificationHint, Timeout};
 
-extern crate crossbeam_channel;
+use crossbeam_channel;
 use self::crossbeam_channel::Receiver;
 
 use std::time::{Duration, Instant};

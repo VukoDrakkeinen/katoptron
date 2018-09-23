@@ -1,12 +1,12 @@
-extern crate katoptron;
+use katoptron;
 use self::katoptron::{Server, PreConnection, TxError, FailExt};
 
-extern crate crossbeam;
+use crossbeam;
 
-extern crate crossbeam_channel;
+use crossbeam_channel;
 use self::crossbeam_channel::Sender;
 
-extern crate hostname;
+use hostname;
 
 use std::net::SocketAddr;
 
