@@ -92,11 +92,9 @@ fn wnd_proc(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 	DefWindowProcW(hwnd, msg, wparam, lparam)
 }
 
-//todo: use std::ptr::null
-
 #[main]
 fn main() {
-	use std::mem;
+	use std::{mem, ptr};
 	use winapi::um::winuser::{
 		CreateWindowExW, RegisterShellHookWindow, SetWindowLongPtrW,
 		GetMessageW, TranslateMessage, DispatchMessageW,
@@ -104,7 +102,6 @@ fn main() {
 		PostMessageW, WM_CLOSE,
 	};
 	use winapi::shared::basetsd::LONG_PTR;
-	use winapi::ctypes::{c_void};
 
 	//PostMessage() is safe to call from other threads
 	struct Hwnd(winapi::shared::windef::HWND);
@@ -116,14 +113,14 @@ fn main() {
 		let window_handle = CreateWindowExW(
 			/*style:*/ 0,
 			/*class:*/ wstr!["Message"],
-			/*title:*/ 0 as LPCWSTR,
+			/*title:*/ ptr::null(),
 			/*style:*/ 0,
 			/*x & y:*/ 0, 0,
 			/*w & h:*/ 0, 0,
 			/*parent*/ HWND_MESSAGE,
-			/*menu :*/ 0 as *mut _,
-			/*instc:*/ 0 as *mut _,
-			/*lparam*/ 0 as *mut c_void,
+			/*menu :*/ ptr::null_mut(),
+			/*instc:*/ ptr::null_mut(),
+			/*lparam*/ ptr::null_mut(),
 		);
 		RegisterShellHookWindow(window_handle);
 		SetWindowLongPtrW(window_handle, GWLP_WNDPROC, wnd_proc as LONG_PTR);
@@ -142,7 +139,7 @@ fn main() {
 
 		unsafe {
 			let mut msg = mem::zeroed();
-			while GetMessageW(&mut msg, 0 as HWND, 0, 0) != 0 {
+			while GetMessageW(&mut msg, ptr::null_mut(), 0, 0) != 0 {
 				TranslateMessage(&msg);
 				DispatchMessageW(&msg);
 			}
