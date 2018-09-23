@@ -1,11 +1,9 @@
-use crossbeam_channel;
-use katoptron;
+use katoptron::{Notification, Connection, TxError, FailExt};
+
 use hostname;
-
-
-use crossbeam_channel::Receiver;
-use self::katoptron::{Notification, Connection, TxError, FailExt};
+use crossbeam_channel::{Receiver, select, __crossbeam_channel_parse, __crossbeam_channel_codegen};
 use std::{net::SocketAddr, time::Duration};
+
 
 pub fn notifications(server_address: SocketAddr, notification_receiver: Receiver<Notification>) {
 	if let Err(e) = send_messages(server_address, notification_receiver) {

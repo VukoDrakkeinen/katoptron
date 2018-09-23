@@ -1,8 +1,6 @@
-extern crate failure;
 use failure::Fail;
-
-extern crate bincode;
-
+use display_derive::Display;
+use bincode;
 use std::io;
 use std::fmt::{self, Display};
 use std::convert::From;

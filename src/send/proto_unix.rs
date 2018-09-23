@@ -1,14 +1,13 @@
-use crossbeam_channel;
-use crossbeam;
-use katoptron;
-
-use self::crossbeam_channel::Sender;
-use self::katoptron::Notification;
-use std::{mem, hint};
+use katoptron::Notification;
 use crate::mirror;
 use crate::cli;
 
+use crossbeam;
+use crossbeam_channel::Sender;
+use std::{mem, hint};
+
 static mut SENDER: Option<Sender<Notification>> = None;
+
 
 unsafe fn init_message_channel(tx: Sender<Notification>) {
 	SENDER = Some(tx);

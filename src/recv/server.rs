@@ -1,13 +1,8 @@
-use katoptron;
-use self::katoptron::{Server, PreConnection, TxError, FailExt};
+use katoptron::{Server, PreConnection, TxError, FailExt};
 
 use crossbeam;
-
-use crossbeam_channel;
-use self::crossbeam_channel::Sender;
-
+use crossbeam_channel::Sender;
 use hostname;
-
 use std::net::SocketAddr;
 
 
@@ -43,7 +38,7 @@ fn receive(preconn: PreConnection, flashes: Sender<String>) {
 	};
 
 	loop {
-		use self::katoptron::Notification;
+		use katoptron::Notification;
 		match conn.recv_notification() { //errors: UnexpectedHandshake | [RecvError: NetworkError <- IoError+context | DeserializationError <- BincodeError | ProtocolDowngrade]
 			Ok(message) => match message {
 				Notification::Popup{ msg } => {

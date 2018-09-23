@@ -1,19 +1,14 @@
-use crossbeam;
-
-use katoptron;
-use self::katoptron::FailExt;
-
-use crossbeam_channel;
-
-use clap;
-
-
-
+use katoptron::FailExt;
 use crate::status_notifier;
 use crate::server;
 
+use crossbeam;
+use crossbeam_channel;
+use clap::{clap_app, crate_version, crate_authors};
+
+
 fn args() -> (u16) {
-	use self::clap::{Error as ClapError, ErrorKind as ClapErrorKind};
+	use clap::{Error as ClapError, ErrorKind as ClapErrorKind};
 	let arg_matches = clap_app!(("katoptron-recv") =>
 		(version: crate_version!())
 		(author: crate_authors!())

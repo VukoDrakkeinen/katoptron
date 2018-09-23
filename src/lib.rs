@@ -1,24 +1,9 @@
 #![feature(nll)]
 #![feature(box_syntax)]
 
-extern crate byteorder;
 use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
-
-extern crate bincode;
-
-extern crate serde;
-
-#[macro_use]
-extern crate serde_derive;
-
-#[macro_use]
-extern crate failure_derive;
-
-#[macro_use]
-extern crate display_derive;
-
-extern crate failure;
-
+use bincode;
+use serde_derive::{Serialize, Deserialize};
 use std::io::{self, Read, Write};
 use std::net::{self, SocketAddr, TcpListener, TcpStream};
 

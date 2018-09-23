@@ -1,29 +1,22 @@
-extern crate winapi;
-use self::winapi::shared::minwindef::{UINT, WPARAM, LPARAM, LRESULT};
-use self::winapi::shared::windef::{HWND};
-use self::winapi::um::winnt::LPCWSTR;
+use katoptron::Notification;
+use crate::mirror;
+use crate::cli;
 
-extern crate wstr_macro;
-use self::wstr_macro::wstr;
-
-extern crate crossbeam;
-extern crate crossbeam_channel;
-use self::crossbeam_channel::Sender;
-
-extern crate katoptron;
-use self::katoptron::Notification;
-
-extern crate scopeguard;
-
+use winapi::shared::minwindef::{UINT, WPARAM, LPARAM, LRESULT};
+use winapi::shared::windef::{HWND};
+use winapi::um::winnt::LPCWSTR;
+use wstr_macro::wstr;
+use crossbeam;
+use crossbeam_channel::Sender;
+//use scopeguard;
 use std::{mem, hint};
-use mirror;
-use cli;
+use lazy_static::{lazy_static, __lazy_static_internal, __lazy_static_create};
 
 
 const SHELLHOOK_REG: LPCWSTR = wstr!["SHELLHOOK"];
 
-
 static mut SENDER: Option<Sender<Notification>> = None;
+
 
 unsafe fn init_message_sender(tx: Sender<Notification>) {
 	SENDER = Some(tx);
@@ -45,10 +38,10 @@ unsafe fn drop_message_sender() {
 
 unsafe extern "system"
 fn wnd_proc(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-	use self::winapi::um::winuser::{DefWindowProcW, RegisterWindowMessageW, PostQuitMessage};
-	use self::winapi::um::winuser::{GetWindowTextW, GetClassNameW};
-	use self::winapi::um::winuser::{WM_DESTROY, HSHELL_WINDOWCREATED, HSHELL_FLASH};
-	use self::winapi::ctypes::{c_int};
+	use winapi::um::winuser::{DefWindowProcW, RegisterWindowMessageW, PostQuitMessage};
+	use winapi::um::winuser::{GetWindowTextW, GetClassNameW};
+	use winapi::um::winuser::{WM_DESTROY, HSHELL_WINDOWCREATED, HSHELL_FLASH};
+	use winapi::ctypes::{c_int};
 	use std::ops::Deref;
 	use std::char;
 
@@ -104,15 +97,19 @@ fn wnd_proc(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 #[main]
 fn main() {
 	use std::mem;
-	use self::winapi::um::winuser::{CreateWindowExW, RegisterShellHookWindow, SetWindowLongPtrW};
-	use self::winapi::um::winuser::{GetMessageW, TranslateMessage, DispatchMessageW};
-	use self::winapi::um::winuser::{HWND_MESSAGE, GWLP_WNDPROC};
-	use self::winapi::shared::basetsd::LONG_PTR;
-	use self::winapi::ctypes::{c_void};
+	use winapi::um::winuser::{
+		CreateWindowExW, RegisterShellHookWindow, SetWindowLongPtrW,
+		GetMessageW, TranslateMessage, DispatchMessageW,
+		HWND_MESSAGE, GWLP_WNDPROC,
+		//PostMessageW, WM_CLOSE,
+	};
+	use winapi::shared::basetsd::LONG_PTR;
+	use winapi::ctypes::{c_void};
 
 	let (server_address, _config_path) = cli::args();
 
-	let window_handle = unsafe {
+	//todo
+	let _window_handle = unsafe {
 		let window_handle = CreateWindowExW(
 			/*style:*/ 0,
 			/*class:*/ wstr!["Message"],
@@ -136,7 +133,7 @@ fn main() {
 		scope.defer(move || unsafe{ drop_message_sender() });
 
 		scope.builder().name(String::from("sender")).spawn(move || {
-			let _finally = scopeguard::guard((), move |_| unsafe { PostMessage(window_handle, WM_CLOSE, 0, 0) });
+			//let _finally = scopeguard::guard((), move |_| unsafe { PostMessageW(window_handle, WM_CLOSE, 0, 0); });
 			mirror::notifications(server_address, receiver);
 		}).unwrap();
 

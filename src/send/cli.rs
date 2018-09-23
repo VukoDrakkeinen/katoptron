@@ -1,10 +1,9 @@
-use clap;
+use clap::{clap_app, crate_version, crate_authors};
 use dirs;
-
 use std::{net::SocketAddr, path::PathBuf};
 
 pub fn args() -> (SocketAddr, PathBuf) {
-	use self::clap::{Error as ClapError, ErrorKind as ClapErrorKind};
+	use clap::{Error as ClapError, ErrorKind as ClapErrorKind};
 	use std::fs::{DirBuilder, File};
 	use std::path::Path;
 

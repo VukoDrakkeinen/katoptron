@@ -1,11 +1,6 @@
 use dbus;
-
-use notify_rust;
-use self::notify_rust::{Notification, NotificationHint, Timeout};
-
-use crossbeam_channel;
-use self::crossbeam_channel::Receiver;
-
+use notify_rust::{Notification, NotificationHint, Timeout};
+use crossbeam_channel::{Receiver, select, __crossbeam_channel_parse, __crossbeam_channel_codegen};
 use std::time::{Duration, Instant};
 use std::collections::HashMap;
 use std::cell::Cell;
