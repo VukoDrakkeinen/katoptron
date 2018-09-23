@@ -8,7 +8,7 @@ use winapi::um::winnt::LPCWSTR;
 use wstr_macro::wstr;
 use crossbeam;
 use crossbeam_channel::Sender;
-//use scopeguard;
+use scopeguard;
 use std::{mem, hint};
 use lazy_static::{lazy_static, __lazy_static_internal, __lazy_static_create};
 
@@ -101,15 +101,18 @@ fn main() {
 		CreateWindowExW, RegisterShellHookWindow, SetWindowLongPtrW,
 		GetMessageW, TranslateMessage, DispatchMessageW,
 		HWND_MESSAGE, GWLP_WNDPROC,
-		//PostMessageW, WM_CLOSE,
+		PostMessageW, WM_CLOSE,
 	};
 	use winapi::shared::basetsd::LONG_PTR;
 	use winapi::ctypes::{c_void};
 
+	//PostMessage() is safe to call from other threads
+	struct Hwnd(winapi::shared::windef::HWND);
+	unsafe impl Send for Hwnd {}
+
 	let (server_address, _config_path) = cli::args();
 
-	//todo
-	let _window_handle = unsafe {
+	let window_handle = unsafe {
 		let window_handle = CreateWindowExW(
 			/*style:*/ 0,
 			/*class:*/ wstr!["Message"],
@@ -124,7 +127,7 @@ fn main() {
 		);
 		RegisterShellHookWindow(window_handle);
 		SetWindowLongPtrW(window_handle, GWLP_WNDPROC, wnd_proc as LONG_PTR);
-		window_handle
+		Hwnd(window_handle)
 	};
 
 	crossbeam::scope(|scope| {
@@ -133,7 +136,7 @@ fn main() {
 		scope.defer(move || unsafe{ drop_message_sender() });
 
 		scope.builder().name(String::from("sender")).spawn(move || {
-			//let _finally = scopeguard::guard((), move |_| unsafe { PostMessageW(window_handle, WM_CLOSE, 0, 0); });
+			let _finally = scopeguard::guard((), move |_| unsafe { PostMessageW(window_handle.0, WM_CLOSE, 0, 0); });
 			mirror::notifications(server_address, receiver);
 		}).unwrap();
 
