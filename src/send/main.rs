@@ -1,6 +1,6 @@
 #![feature(nll)]
 #![feature(main)]
-#![feature(proc_macro_non_items)]
+#![feature(proc_macro_hygiene)]
 
 mod mirror;
 mod cli;
