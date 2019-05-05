@@ -8,7 +8,7 @@ use std::net::SocketAddr;
 
 pub fn listen(port: u16, flashes: Sender<String>) -> Result<(), TxError> {
 	let name = hostname::get_hostname().unwrap_or_else(|| String::from("katoptron server"));
-	let recv_addr = SocketAddr::from(([127, 0, 0, 1], port));
+	let recv_addr = SocketAddr::from(([0, 0, 0, 0], port));
 	let mut server = Server::listen_on(recv_addr, name)?; //errors: UnableToBindAddress
 
 	crossbeam::scope(|scope| {
@@ -32,10 +32,12 @@ pub fn listen(port: u16, flashes: Sender<String>) -> Result<(), TxError> {
 }
 
 fn receive(preconn: PreConnection, flashes: Sender<String>) {
+    print!("Client connecting... ");
 	let (mut conn, client_name) = match preconn.await_handshake() { //errors: HandshakeFailure <- GarbageData | ProtocolDowngrade
 		Ok(ret) => ret,
 		Err(e) => return eprintln!("{}", e.cause_trace()),
 	};
+    println!("ok");
 
 	loop {
 		use katoptron::Notification;
