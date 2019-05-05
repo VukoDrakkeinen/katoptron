@@ -264,7 +264,6 @@ dependencies = [
  "failure 1.0.0 (git+https://github.com/rust-lang-nursery/failure/)",
  "failure_derive 1.0.0 (git+https://github.com/rust-lang-nursery/failure/)",
  "hostname 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "lazy_static 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "notify-rust 3.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "ron 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "scopeguard 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
