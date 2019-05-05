@@ -9,7 +9,7 @@ use wstr_macro::wstr;
 use crossbeam;
 use crossbeam_channel::Sender;
 use scopeguard;
-use std::{mem, process, sync::atomic::{Ordering, AtomicI32, ATOMIC_I32_INIT}};
+use std::{mem, ptr, process, sync::atomic::{Ordering, AtomicI32}};
 
 
 const SHELLHOOK_REG: LPCWSTR = wstr!["SHELLHOOK"];
@@ -26,7 +26,7 @@ impl WindowData {
 		Box::into_raw(box Self {
 			shellhook: winapi::um::winuser::RegisterWindowMessageW(SHELLHOOK_REG),
 			notification_tx,
-			exit_code: ATOMIC_I32_INIT,
+			exit_code: AtomicI32::new(0),
 		})
 	}
 }
@@ -103,7 +103,6 @@ fn main() {
 }
 
 fn work() -> i32 {
-	use std::{mem, ptr};
 	use winapi::um::winuser::{
 		CreateWindowExW, RegisterShellHookWindow, SetWindowLongPtrW,
 		GetMessageW, TranslateMessage, DispatchMessageW,
