@@ -11,5 +11,5 @@ workspace = ".."
 proc-macro = true
 
 [dependencies]
-syn = "^0.13.4"
-quote = "^0.5.2"
+syn = "^0.15.33"
+quote = "^0.6.12"

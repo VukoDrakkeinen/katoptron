@@ -10,27 +10,27 @@ publish = false
 members = ["wstr_macro"]
 
 [dependencies]
-ron = "^0.3.0"
-clap = "^2.31"
-dirs = "^1.0.2"
-serde = "^1.0.45"
-bincode = "^1.0"
+ron = "^0.4.2"
+clap = "^2.33.0"
+dirs = "^1.0.5"
+serde = "^1.0.90"
+bincode = "^1.1.3"
 failure = "^1.0"
-hostname = "^0.1"
-byteorder = "^1.2.2"
+hostname = "^0.1.5"
+byteorder = "^1.3.1"
 crossbeam = "^0.7.1"
-serde_derive = "^1.0.45"
+serde_derive = "^1.0.90"
 failure_derive = "^1.0"
 display_derive = "^1.0"
 wstr_macro = { path = "wstr_macro" }
 
 [target."cfg(unix)".dependencies]
 dbus = "^0.6.4"
-notify-rust = "^3.4"
+notify-rust = "^3.5.0"
 
 [target."cfg(windows)".dependencies]
 scopeguard = "^1.0.0"
-winapi = { version = "^0.3.4", features = ["winuser"] }
+winapi = { version = "^0.3.7", features = ["winuser"] }
 
 [lib]
 name = "katoptron"
