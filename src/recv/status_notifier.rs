@@ -1,6 +1,6 @@
 use dbus;
 use notify_rust::{Notification, NotificationHint, Timeout};
-use crossbeam_channel::{Receiver, select, __crossbeam_channel_parse, __crossbeam_channel_codegen};
+use crossbeam::channel::{Receiver, select};
 use std::time::{Duration, Instant};
 use std::collections::HashMap;
 use std::cell::Cell;
@@ -166,8 +166,8 @@ pub fn show(flashes: Receiver<String>) {
 	let timeout = Duration::from_millis(50);
 	loop {
 		select! {
-			recv(flashes, flash) => {
-				if flash.is_none() {
+			recv(flashes) -> flash => {
+				if flash.is_err() {
 					break;
 				}
 				let flash = flash.unwrap();
@@ -198,7 +198,7 @@ pub fn show(flashes: Receiver<String>) {
 				last_flash_times.retain(|_, &mut time| Instant::now() - time <= FLASH_EXPIRATION_INTERVAL);
 			},
 			//unfortunately there seems no easy way of selecting on both channel and dbus
-			recv(crossbeam_channel::after(timeout)) => for _ in dbus_conn.incoming(50) {}, //todo: why is the timeout in dbus necessary?
+			default(timeout) => for _ in dbus_conn.incoming(50) {}, //todo: why is the timeout in dbus necessary?
 		}
 	}
 }

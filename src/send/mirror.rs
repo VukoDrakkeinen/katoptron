@@ -1,7 +1,7 @@
 use katoptron::{Notification, Connection, TxError, FailExt};
 
 use hostname;
-use crossbeam_channel::{Receiver, select, __crossbeam_channel_parse, __crossbeam_channel_codegen};
+use crossbeam::channel::{Receiver, select};
 use std::{net::SocketAddr, time::Duration};
 
 
@@ -32,14 +32,14 @@ fn send_messages(server_address: SocketAddr, notification_receiver: &Receiver<No
 	let timeout = Duration::from_millis(1000);
 	loop {
 		select! {
-			recv(notification_receiver, notification) => {
-				if let Some(notification) = notification {
+			recv(notification_receiver) -> notification => {
+				if let Ok(notification) = notification {
 					conn.send_eavesdroppable_notification(notification)?; //errors: SerializationFailure | PayloadTooLarge | NetworkError <- IoError
 				} else {
 					break;
 				}
 			},
-			recv(crossbeam_channel::after(timeout)) => {
+			default(timeout) => {
 				conn.send_eavesdroppable_heartbeat()?; //errors: NetworkError <- IoError
 			},
 		}

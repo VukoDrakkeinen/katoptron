@@ -18,11 +18,10 @@ bincode = "^1.0"
 failure = "^1.0"
 hostname = "^0.1"
 byteorder = "^1.2.2"
-crossbeam = "^0.3.2"
+crossbeam = "^0.7.1"
 serde_derive = "^1.0.45"
 failure_derive = "^1.0"
 display_derive = "^1.0"
-crossbeam-channel = "^0.2.1"
 wstr_macro = { path = "wstr_macro" }
 
 [target."cfg(unix)".dependencies]

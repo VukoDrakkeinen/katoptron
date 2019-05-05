@@ -6,8 +6,7 @@ use winapi::shared::minwindef::{UINT, WPARAM, LPARAM, LRESULT};
 use winapi::shared::windef::{HWND};
 use winapi::um::winnt::LPCWSTR;
 use wstr_macro::wstr;
-use crossbeam;
-use crossbeam_channel::Sender;
+use crossbeam::{self, channel, Sender};
 use scopeguard;
 use std::{mem, ptr, process, sync::atomic::{Ordering, AtomicI32}};
 
@@ -58,7 +57,7 @@ fn wnd_proc(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 				let window_title: String = char::decode_utf16(window_title.iter().cloned()).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)).take_while(|c| *c != '\0').collect();
 				let window_class: String = char::decode_utf16(window_class.iter().cloned()).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)).take_while(|c| *c != '\0').collect();
 				println!("{title} {{{class}}}", title=window_title, class=window_class);
-				notification_tx.send(Notification::Popup{ msg: format!("{title} {{{class}}}", title=window_title, class=window_class) });
+				notification_tx.send(Notification::Popup{ msg: format!("{title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
 			},
 
 			HSHELL_FLASH => {
@@ -68,7 +67,7 @@ fn wnd_proc(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 				let window_title: String = char::decode_utf16(window_title.iter().cloned()).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)).take_while(|c| *c != '\0').collect();
 				let window_class: String = char::decode_utf16(window_class.iter().cloned()).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)).take_while(|c| *c != '\0').collect();
 				println!("{title} {{{class}}}", title=window_title, class=window_class);
-				notification_tx.send(Notification::Flash{ msg: format!("{title} {{{class}}}", title=window_title, class=window_class) });
+				notification_tx.send(Notification::Flash{ msg: format!("{title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
 			},
 			_ => {}
 		}
@@ -120,7 +119,7 @@ fn work() -> i32 {
 
 	let (server_address, _config_path) = cli::args();
 
-	let (notification_tx, notification_rx) = crossbeam_channel::bounded(8);
+	let (notification_tx, notification_rx) = channel::bounded(8);
 	let window_handle = unsafe {
 		let window_handle = CreateWindowExW(
 			/*style:*/ 0,
@@ -142,7 +141,7 @@ fn work() -> i32 {
 
 	crossbeam::scope(move |scope| {
 		let panic_exit_code = 8;
-		scope.builder().name("sender".into()).spawn(move || {
+		scope.builder().name("sender".into()).spawn(move |_| {
 			let mut window_close_guard = scopeguard::guard(panic_exit_code, move |exit_code| unsafe { window_handle.close_window(exit_code); });
 			let exit_code = &mut window_close_guard as &mut i32;
 			*exit_code = mirror::notifications(server_address, notification_rx);
@@ -156,5 +155,5 @@ fn work() -> i32 {
 			}
 			msg.wParam as i32 //exit code
 		}
-	})
+	}).unwrap()
 }

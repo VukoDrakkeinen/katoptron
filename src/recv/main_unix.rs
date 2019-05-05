@@ -2,8 +2,7 @@ use katoptron::FailExt;
 use crate::status_notifier;
 use crate::server;
 
-use crossbeam;
-use crossbeam_channel;
+use crossbeam::{self, channel};
 use clap::{clap_app, crate_version, crate_authors};
 
 
@@ -33,15 +32,15 @@ fn args() -> (u16) {
 fn main() {
 	let port = args();
 	crossbeam::scope(|scope| {
-		let (flashes_sender, flasher_receiver) = crossbeam_channel::bounded(8);
+		let (flashes_sender, flasher_receiver) = channel::bounded(8);
 
 		scope.builder().name(String::from("status_notifier")).spawn(
-			move || status_notifier::show(flasher_receiver)
+			move |_| status_notifier::show(flasher_receiver)
 		).unwrap();
 
 		if let Err(e) = server::listen(port, flashes_sender) {
 			eprintln!("{}", e.cause_trace());
 			//todo: exit with an error code
 		}
-	});
+	}).unwrap();
 }

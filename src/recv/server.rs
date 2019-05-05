@@ -1,7 +1,6 @@
 use katoptron::{Server, PreConnection, TxError, FailExt};
 
-use crossbeam;
-use crossbeam_channel::Sender;
+use crossbeam::{self, Sender};
 use hostname;
 use std::net::SocketAddr;
 
@@ -18,7 +17,7 @@ pub fn listen(port: u16, flashes: Sender<String>) -> Result<(), TxError> {
 					//todo: [someday] threadpool/async
 					scope.builder().name(String::from("receiver")).spawn({
 						let flashes = flashes.clone();
-						move || receive(preconn, flashes)
+						move |_| receive(preconn, flashes)
 					}).unwrap();
 				}
 				Err(e) => {
@@ -26,7 +25,7 @@ pub fn listen(port: u16, flashes: Sender<String>) -> Result<(), TxError> {
 				}
 			};
 		}
-	});
+	}).unwrap();
 
 	Ok(())
 }
@@ -48,7 +47,7 @@ fn receive(preconn: PreConnection, flashes: Sender<String>) {
 				},
 				Notification::Flash{ msg } => {
 					println!("Flash: {}", msg);
-					flashes.send(msg);
+					flashes.send(msg).unwrap();
 				},
 			},
 			Err(e) => {
