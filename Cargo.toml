@@ -31,7 +31,7 @@ dbus = "^0.6.1"
 notify-rust = "^3.4"
 
 [target."cfg(windows)".dependencies]
-scopeguard = "^0.3.3"
+scopeguard = "^1.0.0"
 lazy_static = "^1.0.1"
 winapi = { version = "^0.3.4", features = ["winuser"] }
 

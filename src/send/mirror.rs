@@ -5,14 +5,26 @@ use crossbeam_channel::{Receiver, select, __crossbeam_channel_parse, __crossbeam
 use std::{net::SocketAddr, time::Duration};
 
 
-pub fn notifications(server_address: SocketAddr, notification_receiver: Receiver<Notification>) {
-	if let Err(e) = send_messages(server_address, notification_receiver) {
-		eprintln!("{}", e.cause_trace());
-		//todo: exit error code
+pub fn notifications(server_address: SocketAddr, notification_receiver: Receiver<Notification>) -> i32 {
+    let mut exit_code = 0;
+
+	for _ in 0..3 {
+		match send_messages(server_address, &notification_receiver) {
+			Ok(()) => {
+                exit_code = 0;
+                break;
+            },
+			Err(e) => {
+				eprintln!("{}", e.cause_trace());
+                exit_code = 1;
+			}
+		}
 	}
+
+    exit_code
 }
 
-fn send_messages(server_address: SocketAddr, notification_receiver: Receiver<Notification>) -> Result<(), TxError> {
+fn send_messages(server_address: SocketAddr, notification_receiver: &Receiver<Notification>) -> Result<(), TxError> {
 	let name = hostname::get_hostname().unwrap_or_else(|| String::from("katoptron client"));
 	let (mut conn, server_name) = Connection::connect_to(&server_address, name)?; //errors: HandshakeFailure <- GarbageData | ProtocolDowngrade | Timeout
 	println!("Connected to server {} ({})", server_address, server_name);

@@ -1,6 +1,8 @@
 #![feature(nll)]
 #![feature(main)]
 #![feature(proc_macro_hygiene)]
+#![feature(integer_atomics)]
+#![feature(box_syntax)]
 
 mod mirror;
 mod cli;
