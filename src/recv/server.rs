@@ -3,9 +3,10 @@ use katoptron::{Server, PreConnection, TxError, FailExt};
 use crossbeam::{self, Sender};
 use hostname;
 use std::net::SocketAddr;
+use crate::status_notifier::iowake::Wake;
 
 
-pub fn listen(port: u16, flashes: Sender<String>) -> Result<(), TxError> {
+pub fn listen(port: u16, flashes: Sender<String>, wake: Wake) -> Result<(), TxError> {
 	let name = hostname::get_hostname().unwrap_or_else(|| String::from("katoptron server"));
 	let recv_addr = SocketAddr::from(([0, 0, 0, 0], port));
 	let mut server = Server::listen_on(recv_addr, name)?; //errors: UnableToBindAddress
@@ -17,7 +18,8 @@ pub fn listen(port: u16, flashes: Sender<String>) -> Result<(), TxError> {
 					//todo: [someday] threadpool/async
 					scope.builder().name(String::from("receiver")).spawn({
 						let flashes = flashes.clone();
-						move |_| receive(preconn, flashes)
+                        let wake = wake.clone();
+						move |_| receive(preconn, flashes, wake)
 					}).unwrap();
 				}
 				Err(e) => {
@@ -30,7 +32,7 @@ pub fn listen(port: u16, flashes: Sender<String>) -> Result<(), TxError> {
 	Ok(())
 }
 
-fn receive(preconn: PreConnection, flashes: Sender<String>) {
+fn receive(preconn: PreConnection, flashes: Sender<String>, wake: Wake) {
     print!("Client connecting... ");
 	let (mut conn, client_name) = match preconn.await_handshake() { //errors: HandshakeFailure <- GarbageData | ProtocolDowngrade
 		Ok(ret) => ret,
@@ -48,6 +50,7 @@ fn receive(preconn: PreConnection, flashes: Sender<String>) {
 				Notification::Flash{ msg } => {
 					println!("Flash: {}", msg);
 					flashes.send(msg).unwrap();
+                    wake.wake();
 				},
 			},
 			Err(e) => {

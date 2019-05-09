@@ -1,5 +1,5 @@
 use katoptron::FailExt;
-use crate::status_notifier;
+use crate::status_notifier::{self, iowake};
 use crate::server;
 
 use crossbeam::{self, channel};
@@ -32,13 +32,14 @@ fn args() -> (u16) {
 fn main() {
 	let port = args();
 	crossbeam::scope(|scope| {
-		let (flashes_sender, flasher_receiver) = channel::bounded(8);
+		let (flashes_sender, flashes_receiver) = channel::bounded(8);
+        let (wait, wake) = iowake::new().unwrap();
 
 		scope.builder().name(String::from("status_notifier")).spawn(
-			move |_| status_notifier::show(flasher_receiver)
+			move |_| status_notifier::show(flashes_receiver, wait)
 		).unwrap();
 
-		if let Err(e) = server::listen(port, flashes_sender) {
+		if let Err(e) = server::listen(port, flashes_sender, wake) {
 			eprintln!("{}", e.cause_trace());
 			//todo: exit with an error code
 		}

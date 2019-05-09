@@ -1,12 +1,18 @@
+pub mod iowake;
+mod poll;
+mod ffi;
+
 use dbus;
 use notify_rust::{Notification, NotificationHint, Timeout};
-use crossbeam::channel::{Receiver, select};
+use crossbeam::channel::Receiver;
 use std::time::{Duration, Instant};
 use std::collections::HashMap;
 use std::cell::Cell;
 use std::sync::Arc;
 use std::rc::Rc;
 use std::mem;
+use poll::{IoReactor, WatchMode, IoEvents};
+use iowake::Wait;
 
 const FLASH_CUTOFF_INTERVAL:     Duration = Duration::from_secs(30);
 const FLASH_EXPIRATION_INTERVAL: Duration = Duration::from_secs(600);
@@ -22,7 +28,7 @@ impl dbus::tree::DataType for Data {
 	type Signal     = ();
 }
 
-pub fn show(flashes: Receiver<String>) {
+pub fn show(flashes: Receiver<String>, wait: Wait) {
 	let factory = dbus::tree::Factory::new_fnmut::<Data>();
 
 	//todo: why are Arcs necessary here?
@@ -163,42 +169,93 @@ pub fn show(flashes: Receiver<String>) {
 	let path  = dbus::Path::new("/StatusNotifierItem").unwrap();
 	let iface = dbus::Interface::new("org.kde.StatusNotifierItem").unwrap();
 
-	let timeout = Duration::from_millis(50);
-	loop {
-		select! {
-			recv(flashes) -> flash => {
-				if flash.is_err() {
-					break;
-				}
-				let flash = flash.unwrap();
+    //We need to simultanously send & receive (process) data through dbus.
+    //The simplest way would be to use 2 threads for that, but unfortunately
+    //dbus::Connection is !Send + !Sync... IoReactor it is, then.
+    let ioreactor = Arc::new(IoReactor::new().unwrap());
+    ioreactor.watch(&wait, WatchMode::ro()).unwrap();
 
-				let last_flash_time = last_flash_times.entry(flash).or_insert(past);
+    dbus_conn.set_watch_callback(Box::new({
+        let ioreactor = ioreactor.clone();
+        move |dbus_fd| {
+            dbg!(dbus_fd);
+            let mode = WatchMode::from_bool_rw(dbus_fd.readable(), dbus_fd.writable());
 
-				//todo: [someday] anti-spam, n offences allowed, decays over time
-				let now = Instant::now();
-				if now - mem::replace(last_flash_time, now) <= FLASH_CUTOFF_INTERVAL {
-					continue;
-				}
+            if mode == WatchMode::none() {
+                ioreactor.unwatch(&dbus_fd).unwrap();
+                return;
+            }
 
-				unread_notification_count.set(unread_notification_count.get() + 1);
+            match ioreactor.change_mode(&dbus_fd, mode) {
+                Ok(()) => return,
+                Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    ioreactor.watch(&dbus_fd, mode).unwrap();
+                }
+                Err(ref e) => panic!("{}", e),
+            }
+        }
+    }));
 
-				dbus_conn.send(new_status_signal.msg(&path, &iface).append1("NeedsAttention")).unwrap();
-				dbus_conn.send(new_icon_signal.msg(&path, &iface)).unwrap();
+    for dbus_fd in dbus_conn.watch_fds() {
+        let mode = WatchMode::from_bool_rw(dbus_fd.readable(), dbus_fd.writable());
+        if mode == WatchMode::none() { continue }
+        ioreactor.watch(&dbus_fd, mode).unwrap();
+    }
 
-				Notification::new()
-					.summary("VM Notification")
-					.body("ala ma kota")
-					.icon("emblem-shared")
-					.appname("katoptron")
-					.hint(NotificationHint::Category(String::from("message")))
-					.hint(NotificationHint::Resident(true)) // this is not supported by all implementations
-					.timeout(Timeout::Never) // this however is
-					.show().unwrap();
+    let mut ioevents = IoEvents::new();
+    loop {
+        ioreactor.wait(&mut ioevents).unwrap();
 
-				last_flash_times.retain(|_, &mut time| Instant::now() - time <= FLASH_EXPIRATION_INTERVAL);
-			},
-			//unfortunately there seems no easy way of selecting on both channel and dbus
-			default(timeout) => for _ in dbus_conn.incoming(50) {}, //todo: why is the timeout in dbus necessary?
-		}
-	}
+        for e in &ioevents {
+            if e.relates_to(&wait) {
+                wait.ack();
+
+                for flash in flashes.try_iter() {
+                    let last_flash_time = last_flash_times.entry(flash).or_insert(past);
+
+                    //todo: [someday] anti-spam, n offences allowed, decays over time
+                    let now = Instant::now();
+                    if now - mem::replace(last_flash_time, now) <= FLASH_CUTOFF_INTERVAL {
+                        continue;
+                    }
+
+                    unread_notification_count.modify(|c| *c += 1);
+
+                    dbus_conn.send(new_status_signal.msg(&path, &iface).append1("NeedsAttention")).unwrap();
+                    dbus_conn.send(new_icon_signal.msg(&path, &iface)).unwrap();
+
+                    Notification::new()
+                        .summary("VM Notification")
+                        .body("ala ma kota")
+                        .icon("emblem-shared")
+                        .appname("katoptron")
+                        .hint(NotificationHint::Category(String::from("message")))
+                        .hint(NotificationHint::Resident(true)) // this is not supported by all implementations
+                        .timeout(Timeout::Never) // this however is
+                        .show().unwrap();
+
+                    last_flash_times.retain(|_, &mut time| Instant::now() - time <= FLASH_EXPIRATION_INTERVAL);
+                    continue;
+                }
+            }
+
+            //otherwise process dbus (serve requests)
+            dbus_conn.watch_handle(e.fd(), e.dbus_flags());
+            for _ in (dbus::ConnMsgs { conn: &dbus_conn, timeout_ms: None }) {};
+        }
+    }
+}
+
+trait CellModify<T: Copy> {
+    fn modify<F>(&self, f: F) where F: for<'v> FnOnce(&'v mut T);
+}
+
+impl<T: Copy> CellModify<T> for Cell<T> {
+    fn modify<F>(&self, f: F)
+        where F: for<'v> FnOnce(&'v mut T)
+    {
+        let mut val = self.get();
+        f(&mut val);
+        self.set(val);
+    }
 }
