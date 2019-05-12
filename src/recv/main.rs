@@ -1,4 +1,3 @@
-#![feature(nll)]
 #![feature(main)]
 
 mod server;

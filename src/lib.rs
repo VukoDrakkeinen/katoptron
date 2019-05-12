@@ -1,4 +1,3 @@
-#![feature(nll)]
 #![feature(box_syntax)]
 
 use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
