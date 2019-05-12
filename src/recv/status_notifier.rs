@@ -1,18 +1,14 @@
-pub mod iowake;
+//todo(vuko): clean this mess up
 mod poll;
-mod ffi;
 
 use dbus;
 use notify_rust::{Notification, NotificationHint, Timeout};
-use crossbeam::channel::Receiver;
+use crossbeam::channel::{self, select, Receiver};
 use std::time::{Duration, Instant};
 use std::collections::HashMap;
-use std::cell::Cell;
-use std::sync::Arc;
-use std::rc::Rc;
-use std::mem;
+use std::{rc::Rc, sync::Arc, cell::Cell};
+use std::{mem, thread};
 use poll::{IoReactor, WatchMode, IoEvents};
-use iowake::Wait;
 
 const FLASH_CUTOFF_INTERVAL:     Duration = Duration::from_secs(30);
 const FLASH_EXPIRATION_INTERVAL: Duration = Duration::from_secs(600);
@@ -28,7 +24,7 @@ impl dbus::tree::DataType for Data {
 	type Signal     = ();
 }
 
-pub fn show(flashes: Receiver<String>, wait: Wait) {
+pub fn show(flashes: Receiver<String>) {
 	let factory = dbus::tree::Factory::new_fnmut::<Data>();
 
 	//todo: why are Arcs necessary here?
@@ -159,12 +155,7 @@ pub fn show(flashes: Receiver<String>, wait: Wait) {
 
 	let register = dbus::Message::new_method_call("org.kde.StatusNotifierWatcher", "/StatusNotifierWatcher", "org.kde.StatusNotifierWatcher", "RegisterStatusNotifierItem").expect("couldn't create message");
 	let register = register.append(dbus_conn.unique_name());
-	if let Err(e) = dbus_conn.send_with_reply_and_block(register, 250) {
-		println!("fuck: {}: {}", e.name().expect("b"), e.message().expect("c"));
-	}
-
-	let mut last_flash_times = HashMap::new();
-	let past = Instant::now() - FLASH_CUTOFF_INTERVAL * 2; //I'd prefer unix epoch, but it's virtually impossible to get such Instant
+	dbus_conn.send_with_reply_and_block(register, 250).expect("failed to register dbus name");
 
 	let path  = dbus::Path::new("/StatusNotifierItem").unwrap();
 	let iface = dbus::Interface::new("org.kde.StatusNotifierItem").unwrap();
@@ -173,12 +164,10 @@ pub fn show(flashes: Receiver<String>, wait: Wait) {
     //The simplest way would be to use 2 threads for that, but unfortunately
     //dbus::Connection is !Send + !Sync... IoReactor it is, then.
     let ioreactor = Arc::new(IoReactor::new().unwrap());
-    ioreactor.watch(&wait, WatchMode::ro()).unwrap();
 
     dbus_conn.set_watch_callback(Box::new({
         let ioreactor = ioreactor.clone();
         move |dbus_fd| {
-            dbg!(dbus_fd);
             let mode = WatchMode::from_bool_rw(dbus_fd.readable(), dbus_fd.writable());
 
             if mode == WatchMode::none() {
@@ -191,7 +180,7 @@ pub fn show(flashes: Receiver<String>, wait: Wait) {
                 Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => {
                     ioreactor.watch(&dbus_fd, mode).unwrap();
                 }
-                Err(ref e) => panic!("{}", e),
+                Err(ref e) => panic!("failed to change dbus fd mode: {}", e),
             }
         }
     }));
@@ -202,46 +191,66 @@ pub fn show(flashes: Receiver<String>, wait: Wait) {
         ioreactor.watch(&dbus_fd, mode).unwrap();
     }
 
-    let mut ioevents = IoEvents::new();
-    loop {
-        ioreactor.wait(&mut ioevents).unwrap();
+	let mut last_flash_times = HashMap::new();
+	let past = Instant::now() - FLASH_CUTOFF_INTERVAL * 2; //too bad we can't use unix epoch here
 
-        for e in &ioevents {
-            if e.relates_to(&wait) {
-                wait.ack();
+    let (dbus_events_tx, dbus_events) = channel::bounded(0);
 
-                for flash in flashes.try_iter() {
-                    let last_flash_time = last_flash_times.entry(flash).or_insert(past);
+    thread::Builder::new().name("dbus-poll".to_owned()).spawn(move || {
+        let mut ioevents = IoEvents::new();
+        loop {
+            ioreactor.wait(&mut ioevents).unwrap();
 
-                    //todo: [someday] anti-spam, n offences allowed, decays over time
-                    let now = Instant::now();
-                    if now - mem::replace(last_flash_time, now) <= FLASH_CUTOFF_INTERVAL {
-                        continue;
-                    }
-
-                    unread_notification_count.modify(|c| *c += 1);
-
-                    dbus_conn.send(new_status_signal.msg(&path, &iface).append1("NeedsAttention")).unwrap();
-                    dbus_conn.send(new_icon_signal.msg(&path, &iface)).unwrap();
-
-                    Notification::new()
-                        .summary("VM Notification")
-                        .body("ala ma kota")
-                        .icon("emblem-shared")
-                        .appname("katoptron")
-                        .hint(NotificationHint::Category(String::from("message")))
-                        .hint(NotificationHint::Resident(true)) // this is not supported by all implementations
-                        .timeout(Timeout::Never) // this however is
-                        .show().unwrap();
-
-                    last_flash_times.retain(|_, &mut time| Instant::now() - time <= FLASH_EXPIRATION_INTERVAL);
-                    continue;
+            for e in ioevents.drain() {
+                if dbus_events_tx.send(e).is_err() {
+                    return;
                 }
             }
+        }
+    }).unwrap();
 
-            //otherwise process dbus (serve requests)
-            dbus_conn.watch_handle(e.fd(), e.dbus_flags());
-            for _ in (dbus::ConnMsgs { conn: &dbus_conn, timeout_ms: None }) {};
+    loop {
+        select! {
+            recv(flashes) -> flash => {
+                if flash.is_err() {
+                    mem::drop(dbus_conn); //wake up the IoReactor thread
+                    break;
+                }
+
+                let flash = flash.unwrap();
+                let last_flash_time = last_flash_times.entry(flash.clone()).or_insert(past);
+
+                //todo: [someday] anti-spam, n offences allowed, decays over time
+                let now = Instant::now();
+                if now - mem::replace(last_flash_time, now) <= FLASH_CUTOFF_INTERVAL {
+                    continue;
+                }
+                last_flash_times.retain(move |_, &mut t| now - t <= FLASH_EXPIRATION_INTERVAL);
+
+                unread_notification_count.modify(|c| *c += 1);
+
+                dbus_conn.send(new_status_signal.msg(&path, &iface).append1("NeedsAttention")).unwrap();
+                dbus_conn.send(new_icon_signal.msg(&path, &iface)).unwrap();
+
+                //todo(vuko): drop the dep and send notifications ourselves through our conn
+                Notification::new()
+                    .summary("VM Notification")
+                    .body(&flash)
+                    .icon("emblem-shared")
+                    .appname("katoptron")
+                    .hint(NotificationHint::Category(String::from("message")))
+                    .hint(NotificationHint::Resident(true)) //not supported by all implementations
+                    .timeout(Timeout::Never) //this however is
+                    .show().unwrap();
+            }
+
+            //non-blockingly process dbus (serve requests)
+            recv(dbus_events) -> dbus_event => {
+                let e = dbus_event.unwrap();
+
+                dbus_conn.watch_handle(e.fd(), e.dbus_flags());
+                for _ in (dbus::ConnMsgs { conn: &dbus_conn, timeout_ms: None }) {}
+            }
         }
     }
 }

@@ -1,7 +1,6 @@
-use super::ffi::cvt;
 use libc::{self, c_int, c_uint};
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::{io, ptr};
+use std::{io, iter, ptr};
 
 pub struct IoReactor {
 	fd: RawFd,
@@ -93,26 +92,23 @@ impl IoEvents {
 	pub fn new() -> Self {
 		Self(Vec::with_capacity(32))
 	}
-}
 
-impl<'a> IntoIterator for &'a IoEvents {
-	type Item = Event;
-	type IntoIter = std::iter::Map<std::slice::Iter<'a, libc::epoll_event>, for<'r> fn(&'r libc::epoll_event) -> Event>;
-
-	fn into_iter(self) -> Self::IntoIter {
-		self.0.iter().map(Event::from_raw)
+	pub fn drain<'i>(&'i mut self) -> impl iter::Iterator<Item = IoEvent> + 'i {
+		self.0.drain(0..).map(IoEvent::from_raw)
 	}
 }
 
-pub struct Event {
+#[derive(Clone)]
+pub struct IoEvent {
 	rawfd: RawFd,
 	flags: c_int,
 }
 
-impl Event {
-    pub fn relates_to(&self, watchable: &impl AsRawFd) -> bool {
-        self.rawfd == watchable.as_raw_fd()
-    }
+impl IoEvent {
+	#[allow(dead_code)]
+	pub fn relates_to(&self, watchable: impl AsRawFd) -> bool {
+		self.rawfd == watchable.as_raw_fd()
+	}
 
 	pub fn fd(&self) -> RawFd {
 		self.rawfd
@@ -140,10 +136,18 @@ impl Event {
 		dbus_flags
 	}
 
-	fn from_raw(raw: &libc::epoll_event) -> Self {
+	fn from_raw(raw: libc::epoll_event) -> Self {
 		Self {
 			rawfd: raw.u64 as RawFd,
 			flags: raw.events as c_int,
 		}
+	}
+}
+
+pub fn cvt(res: c_int) -> io::Result<c_int> {
+	if res == -1 {
+		Err(io::Error::last_os_error())
+	} else {
+		Ok(res)
 	}
 }
