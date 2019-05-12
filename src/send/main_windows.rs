@@ -4,7 +4,7 @@ use crate::cli;
 
 use winapi::shared::minwindef::{UINT, WPARAM, LPARAM, LRESULT};
 use winapi::shared::windef::{HWND};
-use winapi::um::winnt::LPCWSTR;
+use winapi::um::{winnt::LPCWSTR, winuser::RegisterWindowMessageW};
 use wstr_macro::wstr;
 use crossbeam::{self, channel, Sender};
 use scopeguard;
@@ -21,9 +21,9 @@ struct WindowData {
 }
 
 impl WindowData {
-	unsafe fn new(notification_tx: Sender<Notification>) -> *mut Self {
+	fn new(notification_tx: Sender<Notification>) -> *mut Self {
 		Box::into_raw(box Self {
-			shellhook: winapi::um::winuser::RegisterWindowMessageW(SHELLHOOK_REG),
+			shellhook: unsafe { RegisterWindowMessageW(SHELLHOOK_REG) },
 			notification_tx,
 			exit_code: AtomicI32::new(0),
 		})
@@ -31,43 +31,39 @@ impl WindowData {
 }
 
 unsafe extern "system"
-fn wnd_proc(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+fn wnd_proc(hwnd: HWND, msg_type: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 	use winapi::um::winuser::{DefWindowProcW, PostQuitMessage, DestroyWindow};
 	use winapi::um::winuser::{GetWindowLongPtrW, GWLP_USERDATA};
 	use winapi::um::winuser::{GetWindowTextW, GetClassNameW};
-	use winapi::um::winuser::{WM_DESTROY, WM_NCDESTROY, HSHELL_WINDOWCREATED, HSHELL_FLASH};
+	use winapi::um::winuser::{WM_CLOSE, WM_DESTROY, WM_NCDESTROY, HSHELL_WINDOWCREATED, HSHELL_FLASH};
 	use winapi::ctypes::{c_int};
-	use std::char;
 
 	let window_data = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut WindowData;
 
-	if msg == (*window_data).shellhook {
-		let event_type = wparam as i32;
+	if msg_type == (*window_data).shellhook {
+		let event_type    = wparam as i32;
 		let window_handle = lparam as HWND;
 
-		let mut window_title = [0u16; 2048];
-		let mut window_class = [0u16; 2048];
-
+		let mut title_buf = [0u16; 2048];
+		let mut class_buf = [0u16; 2048];
 
 		match event_type {
-			HSHELL_WINDOWCREATED => {
+			HSHELL_WINDOWCREATED | HSHELL_FLASH => {
 				let notification_tx = &(*window_data).notification_tx;
-				GetWindowTextW(window_handle, window_title.as_mut_ptr(), window_title.len() as c_int);
-				GetClassNameW( window_handle, window_class.as_mut_ptr(), window_class.len() as c_int);
-				let window_title: String = char::decode_utf16(window_title.iter().cloned()).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)).take_while(|c| *c != '\0').collect();
-				let window_class: String = char::decode_utf16(window_class.iter().cloned()).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)).take_while(|c| *c != '\0').collect();
-				println!("{title} {{{class}}}", title=window_title, class=window_class);
-				notification_tx.send(Notification::Popup{ msg: format!("{title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
-			},
 
-			HSHELL_FLASH => {
-				let notification_tx = &(*window_data).notification_tx;
-				GetWindowTextW(window_handle, window_title.as_mut_ptr(), window_title.len() as c_int);
-				GetClassNameW( window_handle, window_class.as_mut_ptr(), window_class.len() as c_int);
-				let window_title: String = char::decode_utf16(window_title.iter().cloned()).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)).take_while(|c| *c != '\0').collect();
-				let window_class: String = char::decode_utf16(window_class.iter().cloned()).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)).take_while(|c| *c != '\0').collect();
-				println!("{title} {{{class}}}", title=window_title, class=window_class);
-				notification_tx.send(Notification::Flash{ msg: format!("{title} {{{class}}}", title=window_title, class=window_class) }).unwrap();
+				let title_len = GetWindowTextW(window_handle, title_buf.as_mut_ptr(), title_buf.len() as c_int);
+				let class_len = GetClassNameW( window_handle, class_buf.as_mut_ptr(), class_buf.len() as c_int);
+                let window_title = String::from_utf16_lossy(&title_buf[..title_len as usize]);
+                let window_class = String::from_utf16_lossy(&class_buf[..class_len as usize]);
+
+                dbg!((&window_title, &window_class));
+
+                let msg = format!("{} {{{}}}", window_title, window_class);
+                if event_type == HSHELL_FLASH {
+                    notification_tx.send(Notification::Flash{ msg }).unwrap();
+                } else {
+                    notification_tx.send(Notification::Popup{ msg }).unwrap();
+                }
 			},
 			_ => {}
 		}
@@ -75,24 +71,24 @@ fn wnd_proc(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 		return 0;
 	}
 
-	if msg == winapi::um::winuser::WM_CLOSE {
+	if msg_type == WM_CLOSE {
 		(*window_data).exit_code.store(lparam as i32, Ordering::Release);
 		DestroyWindow(hwnd);
 		return 0;
 	}
 
-	if msg == WM_DESTROY {
+	if msg_type == WM_DESTROY {
 		let exit_code = (*window_data).exit_code.load(Ordering::Acquire);
 		PostQuitMessage(exit_code);
 		return 0;
 	}
 
-	if msg == WM_NCDESTROY {
+	if msg_type == WM_NCDESTROY {
 		mem::drop(Box::from_raw(window_data));
 		return 0;
 	}
 
-	DefWindowProcW(hwnd, msg, wparam, lparam)
+	DefWindowProcW(hwnd, msg_type, wparam, lparam)
 }
 
 #[main]
